@@ -1,11 +1,12 @@
 #include <core/sdk/entity/cbaseentity.h>
-#include <core/sdk/utils.hpp>
 #include <core/sdk/helpers.hpp>
+#include <core/sdk/utils.hpp>
 #include <core/server_manager.hpp>
 #include <core/timer_system.hpp>
 #include <engine/IEngineSound.h>
 #include <entity2/entitysystem.h>
 #include <networksystem/inetworksystem.h>
+#include <core/sdk/entity/sounds.h>
 
 PLUGIFY_WARN_PUSH()
 
@@ -220,18 +221,14 @@ extern "C" PLUGIN_API void StopSound(int entityHandle, const plg::string& sound)
 /**
  * @brief Emits a sound to a specific client.
  *
- * @param playerSlot The index of the player's slot to whom the sound will be emitted.
- * @param channel The channel through which the sound will be played.
+ * @param playerSlot The index of the player's slot.
  * @param sound The name of the sound to emit.
- * @param volume The volume of the sound.
- * @param soundLevel The level of the sound.
- * @param flags Additional flags for sound playback.
- * @param pitch The pitch of the sound.
- * @param origin The origin of the sound in 3D space.
- * @param soundTime The time at which the sound should be played.
  */
-extern "C" PLUGIN_API void EmitSoundToClient(int playerSlot, int channel, const plg::string& sound, float volume, int soundLevel, int flags, int pitch, const Vector& origin, float soundTime) {
-	utils::PlaySoundToClient(playerSlot, channel, sound.c_str(), volume, static_cast<soundlevel_t>(soundLevel), flags, pitch, origin, soundTime);
+extern "C" PLUGIN_API void EmitSoundToClient(int playerSlot, const plg::string& sound) {
+	auto controller = helpers::GetController(playerSlot);
+	if (!controller) return;
+	ParamScope params(controller);
+	Sounds{}.EmitSoundOnClient(sound.c_str(), params[0]);
 }
 
 /**
