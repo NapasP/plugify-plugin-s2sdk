@@ -5,10 +5,16 @@
 #include <igameevents.h>
 #include <iserver.h>
 
+#include <core/memory/module.hpp>
+
+using Memory = CAddress;
+using Module = CModule;
+
 class CBaseEntity;
 class CServerSideClientBase;
 
 namespace utils {
+	Result<CAddress> QueryInterface(std::string_view library, std::string_view name);
 	CBaseEntity* FindEntityByClassname(CEntityInstance* start, const char* name);
 
 	CBasePlayerController* GetController(CBaseEntity* entity);

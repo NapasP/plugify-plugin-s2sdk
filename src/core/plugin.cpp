@@ -1,9 +1,6 @@
 #include <core/sdk/entity/cgamerules.h>
 #include <core/sdk/entity/cteam.h>
 #include <core/sdk/cvars.hpp>
-#include <dynlibutils/module.hpp>
-#include <dynlibutils/virtual.hpp>
-#include <dynlibutils/vthook.hpp>
 #include <eiface.h>
 #include <engine/igameeventsystem.h>
 #include <entity2/entitysystem.h>
@@ -33,24 +30,26 @@
 #include "user_message_manager.hpp"
 
 Source2SDK g_sdk;
-EXPOSE_PLUGIN(PLUGIN_API, Source2SDK, &g_sdk)
+PLUGIFY_PLUGIN(PLUGIN_API, &g_sdk)
 
 CGameEntitySystem* GameEntitySystem() {
-	TRY_GET_OFFSET(g_pGameConfig, "GameEntitySystem", offset);
-	return *reinterpret_cast<CGameEntitySystem**>(reinterpret_cast<uintptr_t>(g_pGameResourceServiceServer) + *offset);
+	static auto offset = Unwrap(g_pGameConfig->GetOffset("GameEntitySystem"));
+	return *reinterpret_cast<CGameEntitySystem**>(reinterpret_cast<uintptr_t>(g_pGameResourceServiceServer) + offset);
 }
+
+extern void ServerStartup();
 
 namespace {
 constexpr char CS_SCRIPT_PATH[] = "maps/editor/zoo/scripts/hello.vjs";
 
 polyhook::ResultType Hook_StartupServer(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
 	//auto config = polyhook::GetArgument<const GameSessionConfiguration_t *>(params, 1);
-	//auto pWorldSession = polyhook::GetArgument<ISource2WorldSession*>(params, 2);
-	auto pMapName = polyhook::GetArgument<const char*>(params, 3);
+	//auto worldSession = polyhook::GetArgument<ISource2WorldSession*>(params, 2);
+	auto mapName = polyhook::GetArgument<const char*>(params, 3);
 
-	plg::print(LS_DETAILED, "[StartupServer] = {}\n", pMapName);
+	plg::print(LS_DETAILED, "[StartupServer] = {}\n", mapName);
 
-	g_sdk.OnServerStartup();
+	ServerStartup();
 
 	if (gpGlobals == nullptr) {
 		plg::print(LS_ERROR, "Failed to lookup gpGlobals\n");
@@ -213,7 +212,7 @@ polyhook::ResultType Hook_PostEvent(polyhook::HookHandle hook, polyhook::Paramet
 	//auto clientCount = polyhook::GetArgument<int>(params, 3);
 	auto clients = polyhook::GetArgument<uint64_t*>(params, 4);
 	auto message = polyhook::GetArgument<INetworkMessageInternal*>(params, 5);
-	auto pData = polyhook::GetArgument<CNetMessage*>(params, 6);
+	auto data = polyhook::GetArgument<CNetMessage*>(params, 6);
 
 	if (clients == nullptr) {
 		return polyhook::ResultType::Ignored;
@@ -223,11 +222,11 @@ polyhook::ResultType Hook_PostEvent(polyhook::HookHandle hook, polyhook::Paramet
 
 #if defined (CS2)
 	if (type == polyhook::CallbackType::Pre) {
-		g_MultiAddonManager.OnPostEvent(message, pData, clients);
+		g_MultiAddonManager.OnPostEvent(message, data, clients);
 	}
 #endif
 
-	auto result = g_UserMessageManager.ExecuteMessageCallbacks(message, pData, clients, static_cast<HookMode>(type));
+	auto result = g_UserMessageManager.ExecuteMessageCallbacks(message, data, clients, static_cast<HookMode>(type));
 	if (result >= ResultType::Handled) {
 		return polyhook::ResultType::Supercede;
 	}
@@ -461,7 +460,7 @@ polyhook::ResultType Hook_FireOutputInternal(polyhook::HookHandle hook, polyhook
 
 #if defined (CS2)
 polyhook::ResultType Hook_TerminateRound(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
-	//auto pGameRules = polyhook::GetArgument<CCSGameRules*>(params, 0);
+	//auto gameRules = polyhook::GetArgument<CCSGameRules*>(params, 0);
 	auto delay = polyhook::GetArgument<float>(params, 1);
 	auto reason = static_cast<CRoundEndReason>(polyhook::GetArgument<uint32_t>(params, 2));
 
@@ -488,10 +487,10 @@ polyhook::ResultType Hook_DispatchConCommand(polyhook::HookHandle hook, polyhook
 }
 
 polyhook::ResultType Hook_CheckTransmit(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
-	auto ppInfoList = polyhook::GetArgument<CCheckTransmitInfo**>(params, 1);
-	auto nInfoCount = polyhook::GetArgument<uint32_t>(params, 2);
+	auto infoList = polyhook::GetArgument<CCheckTransmitInfo**>(params, 1);
+	auto infoCount = polyhook::GetArgument<uint32_t>(params, 2);
 
-	plg::view view(ppInfoList, nInfoCount);
+	plg::view view(infoList, infoCount);
 
 	g_OnServerCheckTransmitListenerManager(view.get());
 
@@ -562,15 +561,15 @@ polyhook::ResultType Hook_OnAddEntity(polyhook::HookHandle hook, polyhook::Param
 		v8::Isolate::Scope isolateScope(isolate);
 		v8::HandleScope handleScope(isolate);
 
-		auto pPointScript = addresses::CreateEntityByName("point_script", -1);
-		g_pPointScript = static_cast<CBaseEntity*>(pPointScript);
+		auto pointScript = addresses::CreateEntityByName("point_script", -1);
+		g_pPointScript = static_cast<CBaseEntity*>(pointScript);
 		g_pPointScript->DispatchSpawn({
 			{"target_name", "script_main"},
 			{"cs_script", CS_SCRIPT_PATH}
 		});
 #endif
-		TRY_GET_OFFSET(g_pGameConfig, "CCSScript_EntityScript", offset);
-		g_pScripts->AddToTail(reinterpret_cast<uint8_t*>(pPointScript) + *offset);
+		static auto offset = Unwrap(g_pGameConfig->GetOffset("CCSScript_EntityScript"));
+		g_pScripts->AddToTail(reinterpret_cast<uint8_t*>(pointScript) + offset);
 	} else if (name.ends_with("team_manager")) {
 		g_pTeamManagers[entity->m_iTeamNum] = static_cast<CTeam *>(entity);
 	}
@@ -603,22 +602,22 @@ polyhook::ResultType Hook_OnEntityParentChanged(polyhook::HookHandle hook, polyh
 }
 
 polyhook::ResultType Hook_ProcessRespondCvarValue(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
-	auto pClient = polyhook::GetArgument<CServerSideClientBase*>(params, 0);
-	auto pMsg = polyhook::GetArgument<CCLCMsg_RespondCvarValue_t*>(params, 1);
+	auto client = polyhook::GetArgument<CServerSideClientBase*>(params, 0);
+	auto msg = polyhook::GetArgument<CCLCMsg_RespondCvarValue_t*>(params, 1);
 
-	g_PlayerManager.OnRespondCvarValue(pClient, *pMsg);
+	g_PlayerManager.OnRespondCvarValue(client, *msg);
 	return polyhook::ResultType::Ignored;
 }
 
 polyhook::ResultType Hook_BuildGameSessionManifest(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
-	//auto pSystem = polyhook::GetArgument<IGameSystem*>(params, 0);
-	auto pMsg = polyhook::GetArgument<EventBuildGameSessionManifest_t*>(params, 1);
+	//auto system = polyhook::GetArgument<IGameSystem*>(params, 0);
+	auto msg = polyhook::GetArgument<EventBuildGameSessionManifest_t*>(params, 1);
 
 	g_OnBuildGameSessionManifestListenerManager();
 
-	pMsg->m_pResourceManifest->AddResource(CS_SCRIPT_PATH);
+	msg->m_pResourceManifest->AddResource(CS_SCRIPT_PATH);
 	for (const auto& resource : g_Precached) {
-		pMsg->m_pResourceManifest->AddResource(resource.c_str());
+		msg->m_pResourceManifest->AddResource(resource.c_str());
 	}
 
 	return polyhook::ResultType::Ignored;
@@ -633,16 +632,16 @@ polyhook::ResultType Hook_RegisterFunction(polyhook::HookHandle hook, polyhook::
 
 polyhook::ResultType Hook_RegisterScriptClass(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
 	g_pScriptVM = polyhook::GetArgument<IScriptVM*>(params, 0);
-	auto pClassDesc = polyhook::GetArgument<ScriptClassDesc_t*>(params, 1);
-	vscript::RegisterScriptClass(pClassDesc);
+	auto classDesc = polyhook::GetArgument<ScriptClassDesc_t*>(params, 1);
+	vscript::RegisterScriptClass(classDesc);
 	return polyhook::ResultType::Ignored;
 }
 
 polyhook::ResultType Hook_RegisterInstance(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
 	g_pScriptVM = polyhook::GetArgument<IScriptVM*>(params, 0);
-	auto pClassDesc = polyhook::GetArgument<ScriptClassDesc_t*>(params, 1);
-	auto pInstance = polyhook::GetArgument<void*>(params, 2);
-	vscript::RegisterScriptClass(pClassDesc, pInstance);
+	auto classDesc = polyhook::GetArgument<ScriptClassDesc_t*>(params, 1);
+	auto instance = polyhook::GetArgument<void*>(params, 2);
+	vscript::RegisterScriptClass(classDesc, instance);
 	return polyhook::ResultType::Ignored;
 }
 /*
@@ -761,19 +760,11 @@ polyhook::ResultType Hook_PreloadLibrary(polyhook::HookHandle hook, polyhook::Pa
 #endif
 }
 
-void Source2SDK::OnPluginStart() {
-	plg::print(LS_DETAILED, "[OnPluginStart] - Source2SDK!\n");
-
-	globals::Initialize({
-		{ "base", g_sdk.GetLocation() },
-		{ "configs", plg::GetConfigsDir() },
-		{ "data", plg::GetDataDir() },
-	});
-
+Result<void> SetupHooks() {
 	using enum polyhook::CallbackType;
 
 	g_HookManager.AddHookVTableFunc(&IGameEventManager2::FireEvent, g_pGameEventManager, Hook_FireEvent, Pre, Post);
-	using PostEventAbstract = void(IGameEventSystem::*)( CSplitScreenSlot slot, bool bLocalOnly, int nClientCount, const uint64 *clients, INetworkMessageInternal *pEvent, const CNetMessage *pData, unsigned long nSize, NetChannelBufType_t bufType);
+	using PostEventAbstract = void(IGameEventSystem::*)(CSplitScreenSlot slot, bool localOnly, int clientCount, const uint64 *clients, INetworkMessageInternal *event, const CNetMessage *data, unsigned long size, NetChannelBufType_t bufType);
 	g_HookManager.AddHookVTableFunc<PostEventAbstract>(&IGameEventSystem::PostEventAbstract, g_pGameEventSystem, Hook_PostEvent, Pre, Post);
 
 	g_HookManager.AddHookVTableFunc(&IServerGameClients::ClientCommand, g_pSource2GameClients, Hook_ClientCommand, Pre);
@@ -798,10 +789,11 @@ void Source2SDK::OnPluginStart() {
 	//using LogDirect = LoggingResponse_t (*)(void* loggingSystem, LoggingChannelID_t channel, LoggingSeverity_t severity, LeafCodeInfo_t*, LoggingMetaData_t*, Color, char const*, va_list*);
 	//g_HookManager.AddHookDetourFunc<LogDirect>("LogDirect", Hook_LogDirect, Pre);
 
-	TRY_GET_VTABLE(g_pGameConfig, "CLuaVM", CLuaVM);
+	static Memory CLuaVM;
+	UNWRAP(CLuaVM, g_pGameConfig->GetVTable("CLuaVM"));
 	g_HookManager.AddHookVFuncFunc(&IScriptVM::RegisterFunction, CLuaVM, Hook_RegisterFunction, Pre);
 	g_HookManager.AddHookVFuncFunc(&IScriptVM::RegisterScriptClass, CLuaVM, Hook_RegisterScriptClass, Pre);
-	using RegisterInstanceFn = HSCRIPT(IScriptVM::*)(ScriptClassDesc_t *pDesc, void *pInstance);
+	using RegisterInstanceFn = HSCRIPT(IScriptVM::*)(ScriptClassDesc_t *desc, void *instance);
 	g_HookManager.AddHookVFuncFunc<RegisterInstanceFn>(&IScriptVM::RegisterInstance, CLuaVM, Hook_RegisterInstance, Pre);
 	//using SetValueFn = bool(IScriptVM::*)(HSCRIPT hScope, const char *pszKey, const ScriptVariant_t &value);
 	//g_HookManager.AddHookVFuncFunc<SetValueFn>(&IScriptVM::SetValue, &*table3, Hook_SetValue, Pre);
@@ -817,11 +809,13 @@ void Source2SDK::OnPluginStart() {
 	using FireOutputInternalFn = uint64_t(*)(CEntityIOOutput*, CEntityInstance*, CEntityInstance*, const CVariant*, int32_t*, int16_t*, float);
 	g_HookManager.AddHookDetourFunc<FireOutputInternalFn>("CEntityIOOutput::FireOutputInternal", Hook_FireOutputInternal, Pre, Post);
 
-	TRY_GET_VTABLE(g_pGameConfig, "CServerSideClient", CServerSideClient);
+	static Memory CServerSideClient;
+	UNWRAP(CServerSideClient, g_pGameConfig->GetVTable("CServerSideClient"));
 	g_HookManager.AddHookVFuncFunc(&CServerSideClientBase::ProcessRespondCvarValue, CServerSideClient, Hook_ProcessRespondCvarValue, Pre);
 	g_HookManager.AddHookVFuncFunc(&CServerSideClientBase::SendNetMessage, CServerSideClient, Hook_SendNetMessage, Pre);
 
-	TRY_GET_VTABLE(g_pGameConfig, "CGameRulesGameSystem", CGameRulesGameSystem);
+	static Memory CGameRulesGameSystem;
+	UNWRAP(CGameRulesGameSystem, g_pGameConfig->GetVTable("CGameRulesGameSystem"));
 	g_HookManager.AddHookVFuncFunc(&IGameSystem::BuildGameSessionManifest, CGameRulesGameSystem, Hook_BuildGameSessionManifest, Pre);
 
 	using TerminateRoundFn = void(*)(CGameRules*, float, uint32_t, uint64_t, uint32_t);
@@ -829,11 +823,11 @@ void Source2SDK::OnPluginStart() {
 
 	using v8IsolateFn = void(*)(v8::Isolate*);
 
-	void* v8IsolateEnterPtr;
-	TRY_GET_ADDRESS(g_pGameConfig, "v8::Isolate::Enter", v8IsolateEnterPtr);
+	uint8_t* v8IsolateEnterPtr;
+	uint8_t* v8IsolateExitPtr;
 
-	void* v8IsolateExitPtr;
-	TRY_GET_ADDRESS(g_pGameConfig, "v8::Isolate::Exit", v8IsolateExitPtr);
+	UNWRAP(v8IsolateEnterPtr, g_pGameConfig->GetAddress("v8::Isolate::Enter"));
+	UNWRAP(v8IsolateExitPtr, g_pGameConfig->GetAddress("v8::Isolate::Exit"));
 
 #if _WIN32
 	const uint8_t fix = 0;
@@ -841,15 +835,14 @@ void Source2SDK::OnPluginStart() {
 	const uint8_t fix = 6; // skip plt staff
 #endif
 
-	g_HookManager.AddHookDetourFunc<v8IsolateFn>(reinterpret_cast<uintptr_t>(static_cast<uint8_t*>(v8IsolateEnterPtr) + fix), Hook_IsolateEnter, Pre);
-	g_HookManager.AddHookDetourFunc<v8IsolateFn>(reinterpret_cast<uintptr_t>(static_cast<uint8_t*>(v8IsolateExitPtr) + fix), Hook_IsolateExit, Post);
+	g_HookManager.AddHookDetourFunc<v8IsolateFn>(reinterpret_cast<uintptr_t>(v8IsolateEnterPtr + fix), Hook_IsolateEnter, Pre);
+	g_HookManager.AddHookDetourFunc<v8IsolateFn>(reinterpret_cast<uintptr_t>(v8IsolateExitPtr + fix), Hook_IsolateExit, Post);
 
 	if (Module v8("plugify-module-v8"); v8.IsValid()) {
 		using SetModuleResolverFn = void(*)(v8::Module::ResolveModuleCallback);
-		auto resolve = v8.GetFunctionByName("SetModuleResolver").RCast<SetModuleResolverFn>();
+		auto resolve = v8.GetFunctionByName("SetModuleResolver").As<SetModuleResolverFn>();
 		if (!resolve) {
-			plg::print(LS_ERROR, "SetModuleResolver not found!\n");
-			return;
+			return MakeError("SetModuleResolver not found!");
 		}
 		resolve(addresses::CSScript_ResolveModule);
 	}
@@ -860,22 +853,10 @@ void Source2SDK::OnPluginStart() {
 	g_HookManager.AddHookDetourFunc<PreloadLibrary>("PreloadLibrary", Hook_PreloadLibrary, Pre);
 #endif
 
-	OnServerStartup();// for late load*/
+	return {};
 }
 
-void Source2SDK::OnPluginEnd() {
-	globals::Terminate();
-	g_HookManager.UnhookAll();
-	g_PlayerManager.OnSteamAPIDeactivated();
-#if defined (CS2)
-	g_MultiAddonManager.OnSteamAPIDeactivated();
-#endif
-	UnregisterEventListeners();
-
-	plg::print(LS_DETAILED, "[OnPluginEnd] = Source2SDK!\n");
-}
-
-void Source2SDK::OnServerStartup() {
+void ServerStartup() {
 	g_pNetworkGameServer = g_pNetworkServerService->GetIGameServer();
 
 	if (g_pNetworkGameServer != nullptr) {
@@ -906,4 +887,44 @@ void Source2SDK::OnServerStartup() {
 #endif
 
 	RegisterEventListeners();
+}
+
+plg::PluginResult Source2SDK::OnPluginStart() {
+	plg::print(LS_DETAILED, "[OnPluginStart] - Source2SDK!\n");
+
+	{
+		auto result = globals::Initialize({
+		   { "base", GetLocation() },
+		   { "configs", plg::GetConfigsDir() },
+		   { "data", plg::GetDataDir() },
+	   });
+		if (!result) {
+			return plg::PluginResult{ result.error() };
+		}
+	}
+
+	{
+		auto result = SetupHooks();
+		if (!result) {
+			return plg::PluginResult{ result.error() };
+		}
+	}
+
+	ServerStartup();// for late load*/
+
+	return {};
+}
+
+plg::PluginResult Source2SDK::OnPluginEnd() {
+	globals::Terminate();
+	g_HookManager.UnhookAll();
+	g_PlayerManager.OnSteamAPIDeactivated();
+#if defined (CS2)
+	g_MultiAddonManager.OnSteamAPIDeactivated();
+#endif
+	UnregisterEventListeners();
+
+	plg::print(LS_DETAILED, "[OnPluginEnd] = Source2SDK!\n");
+
+	return {};
 }

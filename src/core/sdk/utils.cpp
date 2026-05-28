@@ -24,14 +24,14 @@
 	return MEM::CALL::TraceShape(ray, vecStart, vecEnd, filter, tr);
 }
 
-void utils::GetPlayerAiming(CCSPlayerPawnBase* pPlayer, CGameTrace& ret) {
-	Vector from = pPlayer->GetEyePosition();
+void utils::GetPlayerAiming(CCSPlayerPawnBase* player, CGameTrace& ret) {
+	Vector from = player->GetEyePosition();
 
 	Vector forward;
-	AngleVectors(pPlayer->m_angEyeAngles(), &forward);
+	AngleVectors(player->m_angEyeAngles(), &forward);
 	Vector to = from + forward * MAX_COORD_FLOAT;
 
-	TraceLine(from, to, pPlayer, &ret, MASK_SOLID, CONTENTS_TRIGGER | CONTENTS_PLAYER);
+	TraceLine(from, to, player, &ret, MASK_SOLID, CONTENTS_TRIGGER | CONTENTS_PLAYER);
 }
 
 CBaseEntity* utils::CreateBeam(const Vector& from, const Vector& to, Color color, float width, CBaseEntity* owner) {
@@ -55,6 +55,19 @@ CBaseEntity* utils::CreateBeam(const Vector& from, const Vector& to, Color color
 
 	return beam;
 }*/
+
+Result<CAddress> utils::QueryInterface(std::string_view library, std::string_view name) {
+	auto& provider = g_GameConfigManager.GetModuleProvider();
+	auto module = provider.GetModule(library);
+	if (!module) {
+		return MakeError("Module not found: \"{}\"", library);
+	}
+	auto interface = module->FindInterface(name);
+	if (!interface) {
+		return MakeError("Interface not found \"{}\"", name);
+	}
+	return interface;
+}
 
 CBaseEntity* utils::FindEntityByClassname(CEntityInstance* start, const char* name) {
 	if (!g_pGameEntitySystem) {

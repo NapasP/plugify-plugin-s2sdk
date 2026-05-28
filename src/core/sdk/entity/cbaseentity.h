@@ -279,23 +279,23 @@ public:
 		return m_iGlobalname->String();
 	}
 
-	void SetCollisionGroup(StandardCollisionGroups_t nCollisionGroup) {
+	void SetCollisionGroup(StandardCollisionGroups_t collisionGroup) {
 		if (m_pCollision == nullptr)
 			return;
 
-		m_pCollision->m_collisionAttribute->m_nCollisionGroup = nCollisionGroup;
-		m_pCollision->m_CollisionGroup = nCollisionGroup;
+		m_pCollision->m_collisionAttribute->m_nCollisionGroup = collisionGroup;
+		m_pCollision->m_CollisionGroup = collisionGroup;
 		CollisionRulesChanged();
 	}
 
 	void CollisionRulesChanged() {
-		TRY_GET_OFFSET(g_pGameConfig, "CBaseEntity::CollisionRulesChanged", offset);
-		CALL_VIRTUAL(void, *offset, this);
+		static auto offset = Unwrap(g_pGameConfig->GetOffset("CBaseEntity::CollisionRulesChanged"));
+		CALL_VIRTUAL(void, offset, this);
 	}
 
 	void Teleport(const Vector& newPosition, const QAngle& newAngles, const Vector& newVelocity) {
-		TRY_GET_OFFSET(g_pGameConfig, "CBaseEntity::Teleport", offset);
-		CALL_VIRTUAL(bool, *offset, this, newPosition.IsValid() ? &newPosition : nullptr, newAngles.IsValid() ? &newAngles : nullptr, newVelocity.IsValid() ? &newVelocity : nullptr);
+		static auto offset = Unwrap(g_pGameConfig->GetOffset("CBaseEntity::Teleport"));
+		CALL_VIRTUAL(bool, offset, this, newPosition.IsValid() ? &newPosition : nullptr, newAngles.IsValid() ? &newAngles : nullptr, newVelocity.IsValid() ? &newVelocity : nullptr);
 	}
 
 	CHandle<CBaseEntity> GetHandle() { return m_pEntity->m_EHandle; }
@@ -373,8 +373,8 @@ public:
 	}
 
 	bool IsWeapon() {
-		TRY_GET_OFFSET(g_pGameConfig, "CBaseEntity::IsWeapon", offset);
-		return CALL_VIRTUAL(bool, *offset, this);
+		static auto offset = Unwrap(g_pGameConfig->GetOffset("CBaseEntity::IsWeapon"));
+		return CALL_VIRTUAL(bool, offset, this);
 	}
 
 	void Remove() {
@@ -385,8 +385,8 @@ public:
 		addresses::CEntityInstance_AcceptInput(this, inputName, activator, caller, const_cast<variant_t*>(&value), outputId, nullptr);
 	}
 
-	void SetMoveType(MoveType_t nMoveType) {
-		addresses::CBaseEntity_SetMoveType(this, nMoveType, m_MoveCollide);
+	void SetMoveType(MoveType_t moveType) {
+		addresses::CBaseEntity_SetMoveType(this, moveType, m_MoveCollide);
 	}
 
 	string GetName() const { return m_pEntity->m_name.String(); }

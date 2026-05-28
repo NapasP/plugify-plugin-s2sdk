@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.8.3](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.8.2...v2.8.3) (2026-05-25)
+
+
+### Bug Fixes
+
+* add scopes check ([8cbb919](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/8cbb919e179b077abe2a5ecc051b2b31da94090b))
+* update for new sourcesdk ([e576178](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/e57617884c60d7f5d04427d4d5d30222b0f87dd1))
+
+## [2.8.2](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.8.1...v2.8.2) (2026-05-24)
+
+
+### Bug Fixes
+
+* update for new plugify ([f32a08c](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/f32a08ce703197dd837170c23484c2ad81cb2802))
+
+## [2.8.1](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.8.0...v2.8.1) (2026-05-19)
+
+
+### Bug Fixes
+
+* `TerminateRound`, `BotNavIgnore`, `BotNavIgnorePatch` ([ebe6375](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/ebe637520b86a761e1a118acbc8c6bf4a6883a25))
+* EmitSoundToClient to vscsript ([4b34219](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/4b3421991f831cd5e8a857e0fd2c487de115ee63))
+* remove compile warnings ([59146a2](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/59146a2eadba6af8dd8d58bbad85a653622c9b5f))
+* repair `CBasePlayerController::SetPawn` signature ([28fab47](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/28fab4764af554dfcb3952041532ad566ee4d8e9))
+* update emit sound to client ([424aaeb](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/424aaeb737aafd4ddd54427c0af299286651e1fe))
+* update methods in manifest ([6902908](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/690290868e4cf0ab55ad720c0bca3905b82d6226))
+* update ResolveModule sigs and other addresses ([e28373d](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/e28373dfd34e624c4b45498ffd11f9bfb7155db5))
+
 ## [2.8.0](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.7.6...v2.8.0) (2026-04-23)
 
 

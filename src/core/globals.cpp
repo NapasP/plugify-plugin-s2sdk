@@ -20,16 +20,18 @@ CoreConfig* g_pCoreConfig = nullptr;
 GameConfig* g_pGameConfig = nullptr;
 
 namespace globals {
-	void Initialize(plg::flat_map<plg::string, plg::string> paths) {
+	Result<void> Initialize(plg::flat_map<plg::string, plg::string> paths) {
+		g_GameConfigManager.GetModuleProvider().PreloadModules();
+
 		{
 			g_pCoreConfig = new CoreConfig(plg::vector{
 				   paths["base"] + "/settings.jsonc",
 				   paths["configs"] + "/settings.jsonc",
 				   paths["data"] + "/settings.jsonc"
 		   });
-			if (!g_pCoreConfig->Initialize()) {
-				plg::print(LS_ERROR, "Failed to load settings configuration!\n");
-				return;
+			auto result = g_pCoreConfig->Initialize();
+			if (!result) {
+				return MakeError("Failed to load settings configuration: {}", result.error());
 			}
 		}
 		{
@@ -40,75 +42,63 @@ namespace globals {
 			   }
 		   });
 			if (!result) {
-				plg::print(LS_WARNING, "Failed to load gamedata configuration: {}\n", result.error());
+				return MakeError("Failed to load gamedata configuration: {}", result.error());
 			}
 
 			g_pGameConfig = g_GameConfigManager.GetConfig(*result);
 			if (!g_pGameConfig) {
-				plg::print(LS_ERROR, "Failed to load gamedata configuration!\n");
-				return;
+				return MakeError("Failed to load gamedata configuration!");
 			}
 		}
 
-		TRY_GET_ADDRESS(g_pGameConfig, "&s_GameEventManager", g_pGameEventManager);
+		UNWRAP(g_pGameEventManager, g_pGameConfig->GetAddress("&s_GameEventManager"));
 #if defined (CS2)
-		TRY_GET_ADDRESS(g_pGameConfig, "&s_pScripts", g_pScripts);
+		UNWRAP(g_pScripts, g_pGameConfig->GetAddress("&s_pScripts"));
 #endif
 
 		// load more if needed
-		TRY_GET_SIGNATURE(g_pGameConfig, "LegacyGameEventListener", addresses::GetLegacyGameEventListener);
-		TRY_GET_SIGNATURE(g_pGameConfig, "CBasePlayerController::SetPawn", addresses::CBasePlayerController_SetPawn);
-		TRY_GET_SIGNATURE(g_pGameConfig, "CGameEntitySystem::CreateEntityByName", addresses::CreateEntityByName);
-		TRY_GET_SIGNATURE(g_pGameConfig, "CGameEntitySystem::DispatchSpawn", addresses::DispatchSpawn);
-		TRY_GET_SIGNATURE(g_pGameConfig, "CEntityInstance::AcceptInput", addresses::CEntityInstance_AcceptInput);
-		//TRY_GET_SIGNATURE(g_pGameConfig, "CBaseEntity::EmitSoundFilter", addresses::CBaseEntity_EmitSoundFilter);
-		TRY_GET_SIGNATURE(g_pGameConfig, "CBaseEntity::SetMoveType", addresses::CBaseEntity_SetMoveType);
+		UNWRAP(addresses::GetLegacyGameEventListener, g_pGameConfig->GetSignature("LegacyGameEventListener"));
+		UNWRAP(addresses::CBasePlayerController_SetPawn, g_pGameConfig->GetSignature("CBasePlayerController::SetPawn"));
+		UNWRAP(addresses::CreateEntityByName, g_pGameConfig->GetSignature("CGameEntitySystem::CreateEntityByName"));
+		UNWRAP(addresses::DispatchSpawn, g_pGameConfig->GetSignature("CGameEntitySystem::DispatchSpawn"));
+		UNWRAP(addresses::CEntityInstance_AcceptInput, g_pGameConfig->GetSignature("CEntityInstance::AcceptInput"));
+		//TRY(addresses::CBaseEntity_EmitSoundFilter, g_pGameConfig->GetSignature("CBaseEntity::EmitSoundFilter"));
+		UNWRAP(addresses::CBaseEntity_SetMoveType, g_pGameConfig->GetSignature("CBaseEntity::SetMoveType"));
 
 #if defined (CS2)
-		TRY_GET_SIGNATURE(g_pGameConfig, "CSScript::ResolveModule", addresses::CSScript_ResolveModule);
-		TRY_GET_SIGNATURE(g_pGameConfig, "CCSPlayer_WeaponServices::RemoveItem", addresses::CCSPlayer_WeaponServices_RemoveItem);
-		TRY_GET_SIGNATURE(g_pGameConfig, "CCSPlayerController::SwitchTeam", addresses::CCSPlayerController_SwitchTeam);
-		TRY_GET_SIGNATURE(g_pGameConfig, "CGameRules::TerminateRound", addresses::CGameRules_TerminateRound);
-		TRY_GET_SIGNATURE(g_pGameConfig, "GetCSWeaponDataFromKey", addresses::GetCSWeaponDataFromKey);
+		UNWRAP(addresses::CSScript_ResolveModule, g_pGameConfig->GetSignature("CSScript::ResolveModule"));
+		UNWRAP(addresses::CCSPlayer_WeaponServices_RemoveItem, g_pGameConfig->GetSignature("CCSPlayer_WeaponServices::RemoveItem"));
+		UNWRAP(addresses::CCSPlayerController_SwitchTeam, g_pGameConfig->GetSignature("CCSPlayerController::SwitchTeam"));
+		UNWRAP(addresses::CGameRules_TerminateRound, g_pGameConfig->GetSignature("CGameRules::TerminateRound"));
+		UNWRAP(addresses::GetCSWeaponDataFromKey, g_pGameConfig->GetSignature("GetCSWeaponDataFromKey"));
 #endif
 
-		g_pCVar = static_cast<ICvar*>(QueryInterface("tier0", CVAR_INTERFACE_VERSION));
-		g_pSchemaSystem = static_cast<ISchemaSystem*>(QueryInterface("schemasystem", SCHEMASYSTEM_INTERFACE_VERSION));
-		g_pSource2Server = static_cast<ISource2Server*>(QueryInterface("server", SOURCE2SERVER_INTERFACE_VERSION));
-		g_pSource2GameEntities = static_cast<ISource2GameEntities*>(QueryInterface("server", SOURCE2GAMEENTITIES_INTERFACE_VERSION));
-		g_pSource2GameClients = static_cast<ISource2GameClients*>(QueryInterface("server", SOURCE2GAMECLIENTS_INTERFACE_VERSION));
-		g_pGameResourceServiceServer = static_cast<IGameResourceService*>(QueryInterface("engine2", GAMERESOURCESERVICESERVER_INTERFACE_VERSION));
-		g_pEngineServiceMgr = static_cast<IEngineServiceMgr*>(QueryInterface("engine2", ENGINESERVICEMGR_INTERFACE_VERSION));
+		UNWRAP(g_pCVar, utils::QueryInterface("tier0", CVAR_INTERFACE_VERSION));
+		UNWRAP(g_pSchemaSystem, utils::QueryInterface("schemasystem", SCHEMASYSTEM_INTERFACE_VERSION));
+		UNWRAP(g_pSource2Server, utils::QueryInterface("server", SOURCE2SERVER_INTERFACE_VERSION));
+		UNWRAP(g_pSource2GameEntities, utils::QueryInterface("server", SOURCE2GAMEENTITIES_INTERFACE_VERSION));
+		UNWRAP(g_pSource2GameClients, utils::QueryInterface("server", SOURCE2GAMECLIENTS_INTERFACE_VERSION));
+		UNWRAP(g_pGameResourceServiceServer, utils::QueryInterface("engine2", GAMERESOURCESERVICESERVER_INTERFACE_VERSION));
+		UNWRAP(g_pEngineServiceMgr, utils::QueryInterface("engine2", ENGINESERVICEMGR_INTERFACE_VERSION));
 
-		g_pEngineServer = static_cast<IVEngineServer2*>(QueryInterface("engine2", SOURCE2ENGINETOSERVER_INTERFACE_VERSION));
-		g_pFullFileSystem = static_cast<IFileSystem*>(QueryInterface("filesystem_stdio", FILESYSTEM_INTERFACE_VERSION));
-		g_pGameEventSystem = static_cast<IGameEventSystem*>(QueryInterface("engine2", GAMEEVENTSYSTEM_INTERFACE_VERSION));
-		g_pNetworkServerService = static_cast<INetworkServerService*>(QueryInterface("engine2", NETWORKSERVERSERVICE_INTERFACE_VERSION));
-		g_pNetworkMessages = static_cast<INetworkMessages*>(QueryInterface("networksystem", NETWORKMESSAGES_INTERFACE_VERSION));
-		g_pNetworkSystem = static_cast<INetworkSystem*>(QueryInterface("networksystem", NETWORKSYSTEM_INTERFACE_VERSION));
-		g_pScriptManager = static_cast<IScriptManager*>(QueryInterface("vscript", VSCRIPT_INTERFACE_VERSION));
-		g_pNetworkStringTableServer = static_cast<INetworkStringTableContainer*>(QueryInterface("engine2", INTERFACENAME_NETWORKSTRINGTABLESERVER));
+		UNWRAP(g_pEngineServer, utils::QueryInterface("engine2", SOURCE2ENGINETOSERVER_INTERFACE_VERSION));
+		UNWRAP(g_pFullFileSystem, utils::QueryInterface("filesystem_stdio", FILESYSTEM_INTERFACE_VERSION));
+		UNWRAP(g_pGameEventSystem, utils::QueryInterface("engine2", GAMEEVENTSYSTEM_INTERFACE_VERSION));
+		UNWRAP(g_pNetworkServerService, utils::QueryInterface("engine2", NETWORKSERVERSERVICE_INTERFACE_VERSION));
+		UNWRAP(g_pNetworkMessages, utils::QueryInterface("networksystem", NETWORKMESSAGES_INTERFACE_VERSION));
+		UNWRAP(g_pNetworkSystem, utils::QueryInterface("networksystem", NETWORKSYSTEM_INTERFACE_VERSION));
+		UNWRAP(g_pScriptManager, utils::QueryInterface("vscript", VSCRIPT_INTERFACE_VERSION));
+		UNWRAP(g_pNetworkStringTableServer, utils::QueryInterface("engine2", INTERFACENAME_NETWORKSTRINGTABLESERVER));
 
 		ConVarManager::Init();
+
+		return {};
 	}
 
 	void Terminate() {
 		delete g_pCoreConfig;
 		g_pCoreConfig = nullptr;
 		g_pGameConfig = nullptr;
-	}
-
-	void* QueryInterface(std::string_view module, std::string_view name) {
-		if (const Module moduleLib(module); moduleLib.IsValid()) {
-			if (auto createInterface = moduleLib.GetFunctionByName("CreateInterface").RCast<CreateInterfaceFn>()) {
-				if (auto* interface = createInterface(name.data(), nullptr)) {
-					return interface;
-				}
-			}
-		}
-
-		plg::print(LS_ERROR, "Could not query interface at \"{}\"\n", name);
-		return {};
 	}
 }// namespace globals
 
