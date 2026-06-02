@@ -11,10 +11,12 @@
   "language": "cpp",
   "dependencies": [
     {
-      "name": "configs"
+      "name": "configs",
+      "constraints": ">=2.1.0"
     },
     {
-      "name": "polyhook"
+      "name": "polyhook",
+      "constraints": ">=2.5.1"
     }
   ],
   "methods": [
@@ -19101,24 +19103,42 @@
     {
       "name": "EmitSoundToClient",
       "group": "Engine",
-      "description": "Emits a sound to a specific client.",
+      "description": "Emits a sound to one or more clients.",
       "funcName": "EmitSoundToClient",
       "paramTypes": [
-        {
-          "name": "playerSlot",
-          "type": "int32",
-          "ref": false,
-          "description": "The index of the player's slot."
-        },
-        {
-          "name": "sound",
-          "type": "string",
-          "ref": false,
-          "description": "The name of the sound to emit."
-        }
+    	{
+    	  "name": "entityHandle",
+    	  "type": "int32",
+    	  "ref": false,
+    	  "description": "The handle of the entity that emits the sound."
+    	},
+    	{
+    	  "name": "playersSlot",
+    	  "type": "int32[]",
+    	  "ref": false,
+    	  "description": "Player slot indices that will hear the sound."
+    	},
+    	{
+    	  "name": "sound",
+    	  "type": "string",
+    	  "ref": false,
+    	  "description": "The name of the sound to emit."
+    	},
+    	{
+    	  "name": "volume",
+    	  "type": "float",
+    	  "ref": false,
+    	  "description": "The volume of the sound."
+    	},
+    	{
+    	  "name": "pitch",
+    	  "type": "float",
+    	  "ref": false,
+    	  "description": "The pitch of the sound."
+    	}
       ],
       "retType": {
-        "type": "void"
+    	"type": "void"
       }
     },
     {
