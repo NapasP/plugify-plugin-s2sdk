@@ -56,7 +56,7 @@ Result<void> ConfigLoader::ParseConfigFile(std::string_view gameName) {
 		Result<void> (ConfigLoader::*loader)(configs::Config&);
 	};
 
-	constexpr SectionLoader loaders[] = {
+	SectionLoader loaders[] = {
 		{"Signatures", &ConfigLoader::LoadSignatures},
 		{"Offsets", &ConfigLoader::LoadOffsets},
 		{"Patches", &ConfigLoader::LoadPatches},
@@ -1211,7 +1211,7 @@ Result<Memory> SignatureResolver::ResolveReferences(
 				if (!conVarData) {
 					return MakeError("ConVarData not found: {}", ref.name);
 				}
-				return module.FindPtr(reinterpret_cast<uintptr_t>(conVarData)) - sizeof(ConVarRef);
+				return module.FindPtr(conVarData) - sizeof(ConVarRef);
 			}
 			default:
 				return MakeError("Invalid reference type");
@@ -1273,7 +1273,6 @@ Result<ResolvedAddress> AddressResolver::Resolve(
 	}
 
 	auto finalAddr = ApplyIndirections(baseAddress, address.steps);
-
 	if (!finalAddr) {
 		return MakeError(std::move(finalAddr.error()));
 	}
@@ -1327,10 +1326,10 @@ Result<Memory> AddressResolver::ApplyStep(Memory current, const IndirectionStep&
 			return current.Offset(step.offset);
 
 		case IndirectionStep::Type::Index:
-			return current.Deref(1, step.offset * sizeof(uintptr_t));
+			return current.Deref(step.offset * sizeof(uintptr_t));
 
 		case IndirectionStep::Type::Dereference:
-			return current.Deref(1, step.offset);
+			return current.Deref(step.offset);
 
 		case IndirectionStep::Type::Relative: {
 			auto target = current.Offset(step.offset);

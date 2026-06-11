@@ -144,6 +144,7 @@
         GetClientPawn;
         ProcessTargetString;
         SwitchClientTeam;
+        ChangeClientTeam;
         RespawnClient;
         ForcePlayerSuicide;
         KickClient;
@@ -848,6 +849,13 @@
         SetTransmitInfoPlayerSlot;
         GetTransmitInfoFullUpdate;
         SetTransmitInfoFullUpdate;
+        HideTransmitEntities;
+        ShowTransmitEntities;
+        GetHiddenTransmitEntities;
+        HideTransmitEntity;
+        ShowTransmitEntity;
+        HideTransmitEntityFromOtherPlayers;
+        ShowTransmitEntityToOtherPlayers;
 
         GetWeaponVDataFromKey;
         GetWeaponVData;
