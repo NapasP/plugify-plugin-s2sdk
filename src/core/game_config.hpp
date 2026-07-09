@@ -388,7 +388,7 @@ public:
 	void ForEachVTable(Fn&& fn) const;
 
 private:
-	mutable StatsT<std::atomic_size_t> m_stats;
+	mutable StatsT<std::atomic_unsigned_lock_free> m_stats;
 	plg::flat_hash_map<plg::string, ResolvedSignature, plg::string_hash, std::equal_to<>> m_signatures;
 	plg::flat_hash_map<plg::string, ResolvedAddress, plg::string_hash, std::equal_to<>> m_addresses;
 	plg::flat_hash_map<plg::string, ResolvedVTable, plg::string_hash, std::equal_to<>> m_vtables;
@@ -488,14 +488,22 @@ private:
 	friend class VTableResolver;
 };
 
+struct GameConfigEntry {
+	std::unique_ptr<GameConfig> config;
+	size_t refCount;
+
+	explicit GameConfigEntry(std::unique_ptr<GameConfig> cfg)
+		: config(std::move(cfg)), refCount(1) {}
+};
+
 class GameConfigManager {
 	GameConfigManager() = default;
 	~GameConfigManager() = default;
 	NONCOPYABLE(GameConfigManager)
 
+	static GameConfigManager instance;
 public:
-	static auto& Instance() {
-		static GameConfigManager instance;
+	static auto& Instance() noexcept {
 		return instance;
 	}
 
@@ -507,18 +515,10 @@ public:
 	ModuleProvider& GetModuleProvider();
 	PatchManager& GetPatchManager();
 
-	plg::vector<GameConfig*> GetConfigs() const;
+	const plg::flat_hash_map<uint32_t, GameConfigEntry>& GetConfigs() const;
 
 private:
-	struct ConfigEntry {
-		std::unique_ptr<GameConfig> config;
-		size_t refCount;
-
-		explicit ConfigEntry(std::unique_ptr<GameConfig> cfg)
-			: config(std::move(cfg)), refCount(1) {}
-	};
-
-	plg::flat_hash_map<uint32_t, ConfigEntry> m_configs;
+	plg::flat_hash_map<uint32_t, GameConfigEntry> m_configs;
 	mutable std::shared_mutex m_mutex;
 	uint32_t m_nextId{};
 

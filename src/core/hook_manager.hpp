@@ -10,9 +10,9 @@ class HookManager {
 	~HookManager() = default;
 	NONCOPYABLE(HookManager)
 
+	static HookManager instance;
 public:
-	static auto& Instance() {
-		static HookManager instance;
+	static auto& Instance() noexcept {
 		return instance;
 	}
 
@@ -218,6 +218,6 @@ protected:
 
 private:
 	plg::flat_hash_map<plg::string, std::unique_ptr<Hook>, plg::string_hash, std::equal_to<>> m_dhooks;
-	plg::flat_hash_map<std::pair<void*, void*>, std::unique_ptr<Hook>, plg::pair_hash<void*, void*>> m_vhooks;
+	plg::flat_hash_map<std::pair<void*, void*>, std::unique_ptr<Hook>, plg::pair_hash, std::equal_to<>> m_vhooks;
 };
 inline HookManager& g_HookManager = HookManager::Instance();

@@ -16,8 +16,12 @@ ConCommandInfo::~ConCommandInfo() {
 		return;
 	}
 
-	g_pCVar->UnregisterConCommandCallbacks(commandRef);
+	if (commandRef.IsValidRef()) {
+		g_pCVar->UnregisterConCommandCallbacks(commandRef);
+	}
 }
+
+ConCommandManager ConCommandManager::instance;
 
 bool ConCommandManager::AddCommandListener(std::string_view name, ConCommandListenerCallback callback, HookMode mode) {
 	std::scoped_lock lock(m_mutex);
@@ -70,7 +74,7 @@ bool ConCommandManager::AddValveCommand(std::string_view name, std::string_view 
 	std::scoped_lock lock(m_mutex);
 
 	if (name.empty()) {
-		plg::print(LS_WARNING, "Command name empty\n", name);
+		plg::print(LS_WARNING, "Command name empty\n");
 		return false;
 	}
 
@@ -100,6 +104,11 @@ bool ConCommandManager::AddValveCommand(std::string_view name, std::string_view 
 bool ConCommandManager::RemoveValveCommand(std::string_view name) {
 	std::scoped_lock lock(m_mutex);
 
+	if (name.empty()) {
+		plg::print(LS_WARNING, "Command name empty\n");
+		return false;
+	}
+
 	auto commandRef = g_pCVar->FindConCommand(name.data());
 	if (!commandRef.IsValidRef()) {
 		return false;
@@ -115,6 +124,11 @@ bool ConCommandManager::RemoveValveCommand(std::string_view name) {
 
 bool ConCommandManager::IsValidValveCommand(std::string_view name) {
 	std::scoped_lock lock(m_mutex);
+
+	if (name.empty()) {
+		plg::print(LS_WARNING, "Command name empty\n");
+		return false;
+	}
 
 	ConCommandRef commandRef = g_pCVar->FindConCommand(name.data());
 	return commandRef.IsValidRef();
@@ -156,20 +170,21 @@ ResultType ConCommandManager::ExecuteCommandCallbacks(std::string_view name, con
 	std::scoped_lock lock(m_mutex);
 
 	{
-		auto funcs = m_globalCallbacks[mode].Get();
-		for (const auto& func : funcs) {
-			auto thisResult = func(caller, callingContext, arguments);
-			if (thisResult >= ResultType::Stop) {
-				if (mode == HookMode::Pre) {
-					return ResultType::Stop;
+		if (auto funcs = m_globalCallbacks[mode].Get()) {
+			for (const auto& func : funcs->handlers) {
+				auto thisResult = func(caller, callingContext, arguments);
+				if (thisResult >= ResultType::Stop) {
+					if (mode == HookMode::Pre) {
+						return ResultType::Stop;
+					}
+
+					result = thisResult;
+					break;
 				}
 
-				result = thisResult;
-				break;
-			}
-
-			if (thisResult >= ResultType::Handled) {
-				result = thisResult;
+				if (thisResult >= ResultType::Handled) {
+					result = thisResult;
+				}
 			}
 		}
 	}
@@ -181,13 +196,14 @@ ResultType ConCommandManager::ExecuteCommandCallbacks(std::string_view name, con
 			return result;
 		}*/
 
-		auto funcs = commandInfo->callbacks[mode].Get();
-		for (const auto& func : funcs) {
-			auto thisResult = func(caller, callingContext, arguments);
-			if (thisResult >= ResultType::Handled) {
-				return thisResult;
-			} else if (thisResult > result) {
-				result = thisResult;
+		if (auto funcs = commandInfo->callbacks[mode].Get()) {
+			for (const auto& func : funcs->handlers) {
+				auto thisResult = func(caller, callingContext, arguments);
+				if (thisResult >= ResultType::Handled) {
+					return thisResult;
+				} else if (thisResult > result) {
+					result = thisResult;
+				}
 			}
 		}
 	}

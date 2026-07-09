@@ -1,5 +1,7 @@
 #include "event_manager.hpp"
 
+EventManager EventManager::instance;
+
 EventManager::~EventManager() {
 	if (!m_hookMap.empty()) {
 		g_pGameEventManager->RemoveListener(this);
@@ -9,8 +11,14 @@ EventManager::~EventManager() {
 EventHookError EventManager::HookEvent(std::string_view name, EventListenerCallback callback, HookMode mode) {
 	std::scoped_lock lock(m_mutex);
 
+	if (name.empty()) {
+		plg::print(LS_WARNING, "Event name empty\n");
+		return EventHookError::InvalidEvent;
+	}
+
 	if (!g_pGameEventManager->FindListener(this, name.data())) {
-		if (!g_pGameEventManager->AddListener(this, name.data(), true)) {
+		if (g_pGameEventManager->AddListener(this, name.data(), true) == -1) {
+			plg::print(LS_WARNING, "Event name invalid: {}\n", name);
 			return EventHookError::InvalidEvent;
 		}
 	}
@@ -31,6 +39,11 @@ EventHookError EventManager::HookEvent(std::string_view name, EventListenerCallb
 EventHookError EventManager::UnhookEvent(std::string_view name, EventListenerCallback callback, HookMode mode) {
 	std::scoped_lock lock(m_mutex);
 
+	if (name.empty()) {
+		plg::print(LS_WARNING, "Event name empty\n");
+		return EventHookError::InvalidEvent;
+	}
+
 	auto it = m_hookMap.find(name);
 	if (it != m_hookMap.end()) {
 		auto hook = it->second;
@@ -41,7 +54,7 @@ EventHookError EventManager::UnhookEvent(std::string_view name, EventListenerCal
 		return status;
 	}
 
-	return EventHookError::Okay;
+	return EventHookError::NotActive;
 }
 
 void EventManager::FireGameEvent(IGameEvent* event) {
@@ -87,15 +100,16 @@ ResultType EventManager::OnFireEvent(IGameEvent* event, const bool dontBroadcast
 		if (!preHook.Empty()) {
 			plg::print(LS_DETAILED, "Pushing event `{}` pointer: {}, dont broadcast: {}, post: {}\n", event->GetName(), static_cast<const void*>(event), dontBroadcast, false);
 
-			auto funcs = preHook.Get();
-			for (const auto& func : funcs) {
-				auto result = func(name, event, dontBroadcast);
-				localDontBroadcast = event->GetBool("dont_broadcast");
+			if (auto funcs = preHook.Get()) {
+				for (const auto& func : funcs->handlers) {
+					auto result = func(name, event, dontBroadcast);
+					localDontBroadcast = event->GetBool("dont_broadcast");
 
-				if (result >= ResultType::Handled) {
-					// m_EventCopies.push(g_gameEventManager->DuplicateEvent(pEvent));
-					g_pGameEventManager->FreeEvent(event);
-					return ResultType::Handled;
+					if (result >= ResultType::Handled) {
+						// m_EventCopies.push(g_gameEventManager->DuplicateEvent(pEvent));
+						g_pGameEventManager->FreeEvent(event);
+						return ResultType::Handled;
+					}
 				}
 			}
 		}

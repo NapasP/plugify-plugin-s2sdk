@@ -51,6 +51,8 @@ enum class ConVarFlag : uint64_t {
 	ExecutePerTick = (1 << 29)
 };
 
+consteval void enable_bitmask_operators(ConVarFlag);
+
 struct ConVarInfo {
 	std::unique_ptr<ConVarRef> conVar;
 	ListenerManager<ConVarListenerStr, ConVarListenerCallback> callbacks;
@@ -61,14 +63,14 @@ class ConVarManager {
 	~ConVarManager();
 	NONCOPYABLE(ConVarManager)
 
+	static ConVarManager instance;
 public:
-	static auto& Instance() {
-		static ConVarManager instance;
+	static auto& Instance() noexcept {
 		return instance;
 	}
 	static void Init();
 
-	uint64 GetFlags(ConVarFlag flags) {
+	static uint64 GetFlags(ConVarFlag flags) {
 		auto f = static_cast<uint64>(flags);
 		if (f == FCVAR_NONE) {
 			f |= ConVar_GetDefaultFlags();
@@ -81,7 +83,7 @@ public:
 		std::scoped_lock lock(m_mutex);
 
 		if (name.empty()) {
-			plg::print(LS_WARNING, "ConVar name empty\n", name);
+			plg::print(LS_WARNING, "ConVar name empty\n");
 			return {};
 		}
 
@@ -99,8 +101,9 @@ public:
 		}
 
 		auto conVarInfo = std::make_shared<ConVarInfo>();
-		auto conVar = std::make_unique<ConVarRef>(name.data());
 		m_cnvLookup.emplace(name, conVarInfo);
+
+		auto conVar = std::make_unique<ConVarRef>(name.data());
 
 		if (conVar->IsValidRef()) {
 			conVarInfo->conVar = std::move(conVar);
@@ -114,6 +117,11 @@ public:
 	template<typename T>
 	ConVarRef FindConVar(std::string_view name) {
 		std::scoped_lock lock(m_mutex);
+
+		if (name.empty()) {
+			plg::print(LS_WARNING, "ConVar name empty\n");
+			return {};
+		}
 
 		auto it = m_cnvLookup.find(name);
 		if (it != m_cnvLookup.end()) {
@@ -164,19 +172,4 @@ private:
 	ListenerManager<ConVarListenerStr, ConVarListenerCallback> m_globalCallbacks;
 };
 inline ConVarManager& g_ConVarManager = ConVarManager::Instance();
-
-inline ConVarFlag operator|(ConVarFlag lhs, ConVarFlag rhs) noexcept {
-	using underlying = std::underlying_type_t<ConVarFlag>;
-	return static_cast<ConVarFlag>(static_cast<underlying>(lhs) | static_cast<underlying>(rhs));
-}
-
-inline bool operator&(ConVarFlag lhs, ConVarFlag rhs) noexcept {
-	using underlying = std::underlying_type_t<ConVarFlag>;
-	return static_cast<underlying>(lhs) & static_cast<underlying>(rhs);
-}
-
-inline ConVarFlag& operator|=(ConVarFlag& lhs, ConVarFlag rhs) noexcept {
-	lhs = lhs | rhs;
-	return lhs;
-}
 

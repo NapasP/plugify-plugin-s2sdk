@@ -2,9 +2,13 @@
 #include <iservernetworkable.h>
 
 class TransmitManager {
+	TransmitManager() = default;
+	~TransmitManager() = default;
+	NONCOPYABLE(TransmitManager)
+
+	static TransmitManager instance;
 public:
-	static auto& Instance() {
-		static TransmitManager instance;
+	static auto& Instance() noexcept {
 		return instance;
 	}
 
@@ -21,5 +25,6 @@ public:
 
 private:
 	plg::flat_hash_map<int32_t, plg::flat_hash_set<int32_t>> m_playerHiddenEntities;
+	//std::mutex m_mutex;
 };
 inline TransmitManager& g_TransmitManager = TransmitManager::Instance();

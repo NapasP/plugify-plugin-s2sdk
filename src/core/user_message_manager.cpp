@@ -1,6 +1,8 @@
 #include "user_message_manager.hpp"
 #include "user_message.hpp"
 
+UserMessageManager UserMessageManager::instance;
+
 bool UserMessageManager::HookUserMessage(int16_t messageId, UserMessageCallback callback, HookMode mode) {
 	std::scoped_lock lock(m_mutex);
 
@@ -58,21 +60,22 @@ ResultType UserMessageManager::ExecuteMessageCallbacks(INetworkMessageInternal* 
 	ResultType result = ResultType::Continue;
 
 	{
-		auto funcs = m_global.callbacks[mode].Get();
-		for (const auto& func : funcs) {
-			auto thisResult = func(&message);
-			if (thisResult >= ResultType::Stop) {
-				if (mode == HookMode::Pre) {
-					auto base = message.GetRecipientFilter().GetRecipients().Base();
-					*clients = static_cast<uint64_t>(base[0]) | (static_cast<uint64_t>(base[1]) << 32);
-					return ResultType::Stop;
+		if (auto funcs = m_global.callbacks[mode].Get()) {
+			for (const auto& func : funcs->handlers) {
+				auto thisResult = func(&message);
+				if (thisResult >= ResultType::Stop) {
+					if (mode == HookMode::Pre) {
+						auto base = message.GetRecipientFilter().GetRecipients().Base();
+						*clients = static_cast<uint64_t>(base[0]) | (static_cast<uint64_t>(base[1]) << 32);
+						return ResultType::Stop;
+					}
+					result = thisResult;
+					break;
 				}
-				result = thisResult;
-				break;
-			}
 
-			if (thisResult >= ResultType::Handled) {
-				result = thisResult;
+				if (thisResult >= ResultType::Handled) {
+					result = thisResult;
+				}
 			}
 		}
 	}
@@ -80,17 +83,18 @@ ResultType UserMessageManager::ExecuteMessageCallbacks(INetworkMessageInternal* 
 	auto it = m_hookMap.find(messageId);
 	if (it != m_hookMap.end()) {
 		auto hook = it->second;
-		auto funcs = hook->callbacks[mode].Get();
-		for (const auto& func : funcs) {
-			auto thisResult = func(&message);
-			if (thisResult >= ResultType::Handled) {
-				if (mode == HookMode::Pre) {
-					auto base = message.GetRecipientFilter().GetRecipients().Base();
-					*clients = static_cast<uint64_t>(base[0]) | (static_cast<uint64_t>(base[1]) << 32);
+		if (auto funcs = hook->callbacks[mode].Get()) {
+			for (const auto& func : funcs->handlers) {
+				auto thisResult = func(&message);
+				if (thisResult >= ResultType::Handled) {
+					if (mode == HookMode::Pre) {
+						auto base = message.GetRecipientFilter().GetRecipients().Base();
+						*clients = static_cast<uint64_t>(base[0]) | (static_cast<uint64_t>(base[1]) << 32);
+					}
+					return thisResult;
+				} else if (thisResult > result) {
+					result = thisResult;
 				}
-				return thisResult;
-			} else if (thisResult > result) {
-				result = thisResult;
 			}
 		}
 	}

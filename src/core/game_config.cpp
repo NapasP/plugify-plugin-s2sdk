@@ -617,7 +617,7 @@ Result<void> GameConfig::Initialize() {
 }
 
 Result<void> GameConfig::PreloadSignatures() {
-	std::atomic_flag hadErrors = {};
+	bool hadErrors = false;
 
 	m_loader.ForEachSignature([&](const SignatureData& sig) {
 		auto result = m_signatureResolver.Resolve(sig);
@@ -627,11 +627,11 @@ Result<void> GameConfig::PreloadSignatures() {
 			plg::print(LS_WARNING, "Failed to resolve signature '{}': {}\n",
 					   sig.name, result.error());
 			m_cache.CacheSignature(ResolvedSignature::Failed(sig.name, result.error()));
-			hadErrors.test_and_set(std::memory_order_relaxed);
+			hadErrors = true;
 		}
 	});
 
-	if (hadErrors.test_and_set(std::memory_order_relaxed) && m_options.strictMode) {
+	if (hadErrors && m_options.strictMode) {
 		return MakeError("One or more signatures failed to resolve");
 	}
 
@@ -639,7 +639,7 @@ Result<void> GameConfig::PreloadSignatures() {
 }
 
 Result<void> GameConfig::PreloadAddresses() {
-	std::atomic_flag hadErrors = {};
+	bool hadErrors = false;
 
 	auto addrLookup = [&](const AddressData& addr) -> std::optional<Memory> {
 		switch (addr.type) {
@@ -654,7 +654,7 @@ Result<void> GameConfig::PreloadAddresses() {
 					plg::print(LS_WARNING, "Failed to resolve base address '{}' for address '{}'\n",
 							   addr.base, addr.name);
 					m_cache.CacheAddress(ResolvedAddress::Failed(addr.name, addrResult.error()));
-					hadErrors.test_and_set(std::memory_order_relaxed);
+					hadErrors = true;
 				}
 				break;
 			}
@@ -669,7 +669,7 @@ Result<void> GameConfig::PreloadAddresses() {
 					plg::print(LS_WARNING, "Failed to resolve base signature '{}' for address '{}'\n",
 							   addr.base, addr.name);
 					m_cache.CacheAddress(ResolvedAddress::Failed(addr.name, sigResult.error()));
-					hadErrors.test_and_set(std::memory_order_relaxed);
+					hadErrors = true;
 				}
 				break;
 			}
@@ -684,7 +684,7 @@ Result<void> GameConfig::PreloadAddresses() {
 					plg::print(LS_WARNING, "Failed to resolve base vt '{}' for address '{}'\n",
 							   addr.base, addr.name);
 					m_cache.CacheAddress(ResolvedAddress::Failed(addr.name, vtResult.error()));
-					hadErrors.test_and_set(std::memory_order_relaxed);
+					hadErrors = true;
 				}
 				break;
 			}
@@ -706,11 +706,11 @@ Result<void> GameConfig::PreloadAddresses() {
 			plg::print(LS_WARNING, "Failed to resolve address '{}': {}\n",
 					   addr.name, result.error());
 			m_cache.CacheAddress(ResolvedAddress::Failed(addr.name, result.error()));
-			hadErrors.test_and_set(std::memory_order_relaxed);
+			hadErrors = true;
 		}
 	});
 
-	if (hadErrors.test_and_set(std::memory_order_relaxed) && m_options.strictMode) {
+	if (hadErrors && m_options.strictMode) {
 		return MakeError("One or more addresses failed to resolve");
 	}
 
@@ -718,7 +718,7 @@ Result<void> GameConfig::PreloadAddresses() {
 }
 
 Result<void> GameConfig::PreloadVTables() {
-	std::atomic_flag hadErrors;
+	bool hadErrors = false;
 
 	m_loader.ForEachVTable([&](const VTableData& vt) {
 		auto result = m_vtableResolver.Resolve(vt);
@@ -728,11 +728,11 @@ Result<void> GameConfig::PreloadVTables() {
 			plg::print(LS_WARNING, "Failed to resolve vtable '{}': {}\n",
 					   vt.name, result.error());
 			m_cache.CacheVTable(ResolvedVTable::Failed(vt.name, result.error()));
-			hadErrors.test_and_set(std::memory_order_relaxed);
+			hadErrors = true;
 		}
 	});
 
-	if (hadErrors.test_and_set(std::memory_order_relaxed) && m_options.strictMode) {
+	if (hadErrors && m_options.strictMode) {
 		return MakeError("One or more vtables failed to resolve");
 	}
 
@@ -740,18 +740,18 @@ Result<void> GameConfig::PreloadVTables() {
 }
 
 Result<void> GameConfig::ApplyAllPatches(const PatchOptions& options) {
-	std::atomic_flag hadErrors = {};
+	bool hadErrors = false;
 
 	m_loader.ForEachPatch([&](const PatchData& patch) {
 		auto result = ApplyPatch(patch, options);
 		if (!result) {
 			plg::print(LS_WARNING, "Failed to apply patch '{}': {}\n",
 					   patch.name, result.error());
-			hadErrors.test_and_set(std::memory_order_relaxed);
+			hadErrors = true;
 		}
 	});
 
-	if (hadErrors.test_and_set(std::memory_order_relaxed) && m_options.allowPartialApply) {
+	if (hadErrors && m_options.allowPartialApply) {
 		return MakeError("One or more patches failed to apply");
 	}
 	return {};
@@ -763,18 +763,18 @@ Result<void> GameConfig::RestorePatch(std::string_view name) {
 }
 
 Result<void> GameConfig::RestoreAllPatches() {
-	std::atomic_flag hadErrors = {};
+	bool hadErrors = false;
 
 	m_loader.ForEachPatch([&](const PatchData& patch) {
 		auto result = RestorePatch(patch.name);
 		if (!result) {
 			plg::print(LS_WARNING, "Failed to restore patch '{}': {}\n",
 					   patch.name, result.error());
-			hadErrors.test_and_set(std::memory_order_relaxed);
+			hadErrors = true;
 		}
 	});
 
-	if (hadErrors.test_and_set(std::memory_order_relaxed)) {
+	if (hadErrors) {
 		return MakeError("One or more patches failed to restore");
 	}
 	return {};
@@ -1387,11 +1387,13 @@ Result<Memory> VTableResolver::ResolveTable(const Module& module, std::string_vi
 	return address;
 }
 
+GameConfigManager GameConfigManager::instance;
+
 Result<uint32_t> GameConfigManager::LoadConfig(LoadOptions options) {
 	std::unique_lock lock(m_mutex);
 
 	// Check for existing config with same paths
-	for (const auto& [id, entry] : m_configs) {
+	for (auto& [id, entry] : m_configs) {
 		const auto& existingPaths = entry.config->GetOptions().configPaths;
 
 		bool matchFound = false;
@@ -1407,7 +1409,7 @@ Result<uint32_t> GameConfigManager::LoadConfig(LoadOptions options) {
 
 		if (matchFound) {
 			// Reuse existing config
-			const_cast<ConfigEntry&>(entry).refCount++;
+			entry.refCount++;
 			return id;
 		}
 	}
@@ -1424,8 +1426,7 @@ Result<uint32_t> GameConfigManager::LoadConfig(LoadOptions options) {
 	}
 
 	uint32_t id = m_nextId++;
-	m_configs.emplace(id, ConfigEntry{std::move(config)});
-
+	m_configs.emplace(id, GameConfigEntry{std::move(config)});
 	return id;
 }
 
@@ -1459,14 +1460,8 @@ PatchManager& GameConfigManager::GetPatchManager() {
 	return m_patchManager;
 }
 
-plg::vector<GameConfig*> GameConfigManager::GetConfigs() const {
-	plg::vector<GameConfig*> configs;
-	configs.reserve(m_configs.size());
-	std::shared_lock lock(m_mutex);
-	for (const auto& [_, entry] : m_configs) {
-		configs.push_back(entry.config.get());
-	}
-	return configs;
+const plg::flat_hash_map<uint32_t, GameConfigEntry>& GameConfigManager::GetConfigs() const {
+	return m_configs;
 }
 
 #undef GC_TRY_VOID
