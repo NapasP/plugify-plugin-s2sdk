@@ -213,6 +213,13 @@
         "win64": 163,
         "linuxsteamrt64": 162
       },
+      // Per-entity transmit virtual: void CBaseEntity::SetTransmit(CCheckTransmitInfo*, bool).
+      // Used by the transmit manager to hide entities from specific players.
+      // Verify against the current build if entities crash on spawn.
+      "CBaseEntity::SetTransmit": {
+        "win64": 95,
+        "linuxsteamrt64": 94
+      },
       // Player controller respawn function offset
       "CBasePlayerController::RoundRespawn": {
         "win64": 273,

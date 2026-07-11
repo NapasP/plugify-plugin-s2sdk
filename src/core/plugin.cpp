@@ -489,7 +489,6 @@ polyhook::ResultType Hook_CheckTransmit(polyhook::HookHandle hook, polyhook::Par
 	plg::view view(infoList, infoCount);
 
 	g_ServerCheckTransmitListenerManager(view.get());
-	g_TransmitManager.OnCheckTransmit(view.get());
 
 	return polyhook::ResultType::Ignored;
 }
@@ -566,6 +565,8 @@ polyhook::ResultType Hook_OnEntityCreated(polyhook::HookHandle hook, polyhook::P
 		g_pScripts->AddToTail(reinterpret_cast<uint8_t*>(g_pPointScript) + offset);
 #endif
 	}
+
+	g_TransmitManager.EnsureSetTransmitHook(entity);
 
 	g_EntityCreatedListenerManager(entity->GetRefEHandle().ToInt());
 	return polyhook::ResultType::Ignored;
