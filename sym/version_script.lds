@@ -54,6 +54,7 @@
         GetClientSteamID64;
         GetClientIp;
         GetClientLanguage;
+        GetClientLanguageCode;
         GetClientOS;
         GetClientName;
         SetClientName;
@@ -1098,6 +1099,8 @@
 
         __polyhook_*;
         __configs_*;
+        __translations_*;
+        __permissions_*;
         *_offset;
     local: *;
 };

@@ -1,3 +1,4 @@
+#include <core/localization.hpp>
 #include <core/player_manager.hpp>
 #include <core/sdk/entity/cbaseentity.h>
 #include <core/sdk/entity/cbaseplayercontroller.h>
@@ -238,6 +239,25 @@ extern "C" PLUGIN_API plg::string GetClientLanguage(int playerSlot) {
 	}
 
 	return player->GetLanguage();
+}
+
+/**
+ * @brief Retrieves a client's language as an ISO code.
+ *
+ * Unlike GetClientLanguage, which returns the raw `cl_language` value ("english",
+ * "schinese"), this returns the code translation files are keyed by ("en", "zh-CN").
+ * Falls back to the server language when the client's language is not known.
+ *
+ * @param playerSlot The index of the player's slot.
+ * @return The client's ISO language code.
+ */
+extern "C" PLUGIN_API plg::string GetClientLanguageCode(int playerSlot) {
+	auto player = g_PlayerManager.ToPlayer(CPlayerSlot(playerSlot));
+	if (player == nullptr) {
+		return {};
+	}
+
+	return player->GetLanguageCode();
 }
 
 /**
@@ -1383,7 +1403,7 @@ extern "C" PLUGIN_API plg::vec3 GetClientCenter(int playerSlot) {
 extern "C" PLUGIN_API void TeleportClient(int playerSlot, const plg::vec3& origin, const plg::vec3& angles, const plg::vec3& velocity) {
 	auto [controller, pawn] = helpers::GetController2(playerSlot);
 	if (!pawn) return;
-	pawn->Teleport(std::bit_cast<Vector>(origin), std::bit_cast<QAngle>(velocity), std::bit_cast<Vector>(velocity));
+	pawn->Teleport(std::bit_cast<Vector>(origin), std::bit_cast<QAngle>(angles), std::bit_cast<Vector>(velocity));
 }
 
 /**

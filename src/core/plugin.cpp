@@ -29,6 +29,7 @@
 #include "server_manager.hpp"
 #include "timer_system.hpp"
 #include "transmit_manager.hpp"
+#include "user_message.hpp"
 #include "user_message_manager.hpp"
 
 Source2SDK g_sdk;
@@ -221,8 +222,6 @@ polyhook::ResultType Hook_PostEvent(polyhook::HookHandle hook, polyhook::Paramet
 	if (clients == nullptr) {
 		return polyhook::ResultType::Ignored;
 	}
-
-	//plg::print(LS_DETAILED, "[PostEvent] = {}, {}, {}, {}\n", slot, localOnly, clientCount, static_cast<void*>(clients) );
 
 #if defined (CS2)
 	if (type == polyhook::CallbackType::Pre) {
@@ -455,7 +454,7 @@ polyhook::ResultType Hook_FireOutputInternal(polyhook::HookHandle hook, polyhook
 	auto activator = polyhook::GetArgument<CEntityInstance*>(params, 1);
 	auto caller = polyhook::GetArgument<CEntityInstance*>(params, 2);
 	//auto value = polyhook::GetArgument<const CVariant* const>(params, 3);
-	auto delay = polyhook::GetArgument<float>(params, 6);
+	auto delay = polyhook::GetArgument<float>(params, 4);
 
 	ResultType result = type == polyhook::CallbackType::Post ?
 		g_EntityOutputManager.FireOutputInternal_Post(self, activator, caller, delay) :
@@ -563,7 +562,32 @@ polyhook::ResultType Hook_SendNetMessage(polyhook::HookHandle hook, polyhook::Pa
 	}
 
 	g_MultiAddonManager.OnSendNetMessage(client, data, bufType);
+
+	if (!g_SendNetMessageListenerManager.Empty()) {
+		if (auto* msgSerializable = data->GetSerializerPB()) {
+			int playerSlot = client->GetPlayerSlot().Get();
+			UserMessage message(msgSerializable, data, 1ULL << playerSlot);
+			g_SendNetMessageListenerManager(playerSlot, &message);
+		}
+	}
 #endif
+	return polyhook::ResultType::Ignored;
+}
+
+polyhook::ResultType Hook_Serialize(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
+	auto data = polyhook::GetArgument<const CNetMessage*>(params, 2);
+	if (data == nullptr || g_SerializeMessageListenerManager.Empty()) {
+		return polyhook::ResultType::Ignored;
+	}
+
+	auto msgSerializable = data->GetSerializerPB();
+	if (msgSerializable == nullptr) {
+		return polyhook::ResultType::Ignored;
+	}
+
+	UserMessage message(msgSerializable, data, 0);
+	g_SerializeMessageListenerManager(&message);
+
 	return polyhook::ResultType::Ignored;
 }
 
@@ -575,7 +599,7 @@ polyhook::ResultType Hook_OnEntityCreated(polyhook::HookHandle hook, polyhook::P
 		g_pGameRules = g_pGameRulesProxy->m_pGameRules;
 
 #if defined (CS2)
-		/*v8::Isolate* isolate = v8::Isolate::TryGetCurrent();
+		v8::Isolate* isolate = v8::Isolate::TryGetCurrent();
 		v8::Locker locker(isolate);
 		v8::Isolate::Scope isolateScope(isolate);
 		v8::HandleScope handleScope(isolate);
@@ -586,7 +610,7 @@ polyhook::ResultType Hook_OnEntityCreated(polyhook::HookHandle hook, polyhook::P
 			{"cs_script", CS_SCRIPT_PATH}
 		});
 		static auto offset = GetOrLog(g_pGameConfig->GetOffset("CCSScript_EntityScript"));
-		g_pScripts->AddToTail(reinterpret_cast<uint8_t*>(g_pPointScript) + offset);*/
+		g_pScripts->AddToTail(reinterpret_cast<uint8_t*>(g_pPointScript) + offset);
 #endif
 	}
 
@@ -685,7 +709,7 @@ polyhook::ResultType Hook_IsolateExit(polyhook::HookHandle hook, polyhook::Param
 }
 #endif
 
-#if _WIN32
+#if PLATFORM_WINDOWS
 polyhook::ResultType Hook_PreloadLibrary(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
 	HMODULE hModule = (HMODULE) polyhook::GetArgument<void*>(params, 0);
 
@@ -700,8 +724,6 @@ polyhook::ResultType Hook_PreloadLibrary(polyhook::HookHandle hook, polyhook::Pa
 
 	return polyhook::ResultType::Ignored;
 }
-#else
-#include <dlfcn.h>
 #endif
 }
 
@@ -713,6 +735,7 @@ Result<void> SetupHooks() {
 	CHECK(g_HookManager.AddHookVTableFunc(STR(IGameEventManager2::FireEvent), &IGameEventManager2::FireEvent, g_pGameEventManager, Hook_FireEvent, {Pre, Post}));
 	using PostEventAbstract = void(IGameEventSystem::*)(CSplitScreenSlot slot, bool localOnly, int clientCount, const uint64 *clients, INetworkMessageInternal *event, const CNetMessage *data, unsigned long size, NetChannelBufType_t bufType);
 	CHECK(g_HookManager.AddHookVTableFunc<PostEventAbstract>(STR(IGameEventSystem::PostEventAbstract), &IGameEventSystem::PostEventAbstract, g_pGameEventSystem, Hook_PostEvent, {Pre, Post}));
+	CHECK(g_HookManager.AddHookVTableFunc(STR(INetworkMessages::SerializeAbstract), &INetworkMessages::SerializeAbstract, g_pNetworkMessages, Hook_Serialize, {Pre}));
 
 	CHECK(g_HookManager.AddHookVTableFunc(STR(IServerGameClients::ClientCommand), &IServerGameClients::ClientCommand, g_pSource2GameClients, Hook_ClientCommand, {Pre}));
 	CHECK(g_HookManager.AddHookVTableFunc(STR(IServerGameClients::ClientActive), &IServerGameClients::ClientActive, g_pSource2GameClients, Hook_ClientActive, {Post}));
@@ -760,7 +783,7 @@ Result<void> SetupHooks() {
 	CHECK(g_HookManager.AddHookDetourFunc<HostStateRequestFn>("CHostStateMgr::StartNewRequest", Hook_HostStateRequest, {Pre}));
 	using ReplyConnectionFn = void (*)(CNetworkGameServerBase *server, CServerSideClient* client);
 	CHECK(g_HookManager.AddHookDetourFunc<ReplyConnectionFn>("CNetworkGameServer::ReplyConnection", Hook_ReplyConnection, {Pre, Post}));
-	using FireOutputInternalFn = uint64_t(*)(CEntityIOOutput*, CEntityInstance*, CEntityInstance*, const CVariant*, int32_t*, int16_t*, float);
+	using FireOutputInternalFn = void(*)(CEntityIOOutput*, CEntityInstance*, CEntityInstance*, const CVariant*, float, void*, void*);
 	CHECK(g_HookManager.AddHookDetourFunc<FireOutputInternalFn>("CEntityIOOutput::FireOutputInternal", Hook_FireOutputInternal, {Pre, Post}));
 
 	static Memory CServerSideClient;
@@ -778,7 +801,7 @@ Result<void> SetupHooks() {
 	using ScriptGetAddonFn = uint64(*)();
 	CHECK(g_HookManager.AddHookDetourFunc<ScriptGetAddonFn>("ScriptGetAddon", Hook_ScriptGetAddon, {Pre}));
 
-#if 0
+#if 1
 	using v8IsolateFn = void(*)(v8::Isolate*);
 
 	uint8_t* v8IsolateEnterPtr;
@@ -787,7 +810,7 @@ Result<void> SetupHooks() {
 	UNWRAP(v8IsolateEnterPtr, g_pGameConfig->GetAddress("v8::Isolate::Enter"));
 	UNWRAP(v8IsolateExitPtr, g_pGameConfig->GetAddress("v8::Isolate::Exit"));
 
-#if _WIN32
+#if PLATFORM_WINDOWS
 	const uint8_t fix = 0;
 #else
 	const uint8_t fix = 6; // skip plt staff
@@ -796,18 +819,16 @@ Result<void> SetupHooks() {
 	CHECK(g_HookManager.AddHookDetourFunc<v8IsolateFn>("v8::Isolate::Enter", reinterpret_cast<uintptr_t>(v8IsolateEnterPtr + fix), Hook_IsolateEnter, {Pre}));
 	CHECK(g_HookManager.AddHookDetourFunc<v8IsolateFn>("v8::Isolate::Exit", reinterpret_cast<uintptr_t>(v8IsolateExitPtr + fix), Hook_IsolateExit, {Post}));
 
-	if (Module v8("plugify-module-v8"); v8.IsValid()) {
-		using SetModuleResolverFn = void(*)(v8::Module::ResolveModuleCallback);
-		auto resolve = v8.GetFunctionByName("SetModuleResolver").As<SetModuleResolverFn>();
-		if (!resolve) {
-			return MakeError("SetModuleResolver not found!");
-		}
+	using SetModuleResolverFn = void(*)(v8::Module::ResolveModuleCallback);
+	if (auto resolve = ModuleLookup::FindSymbolAs<SetModuleResolverFn>(S2SDK_LIBRARY_PREFIX "plugify-module-v8" S2SDK_LIBRARY_SUFFIX, "SetModuleResolver")) {
 		resolve(addresses::CSScript_ResolveModule);
+	} else {
+		return MakeError("SetModuleResolver not found!");
 	}
 #endif
 #endif
 
-#if _WIN32
+#if PLATFORM_WINDOWS
 	using PreloadLibrary = void(*)(void*);
 	CHECK(g_HookManager.AddHookDetourFunc<PreloadLibrary>("PreloadLibrary", Hook_PreloadLibrary, {Pre}));
 #endif
