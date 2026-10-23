@@ -231,6 +231,7 @@
         SetConVarBounds;
         GetConVar;
         GetConVarDefault;
+        SetConVarDefault;
         GetConVarValue;
         GetConVarBool;
         GetConVarInt16;
@@ -306,6 +307,7 @@
         GetFirstActiveEntity;
         GetPrevActiveEntity;
         GetNextActiveEntity;
+        GetPointScriptHandle;
         HookEntityOutput;
         UnhookEntityOutput;
         FindEntityByClassname;
@@ -467,33 +469,6 @@
         GetGameTotalRoundsPlayed;
         TerminateRound;
 
-        KvCreate;
-        KvDestroy;
-        KvGetName;
-        KvSetName;
-        KvFindKey;
-        KvFindKeyOrCreate;
-        KvCreateKey;
-        KvCreateNewKey;
-        KvAddSubKey;
-        KvGetFirstSubKey;
-        KvGetNextKey;
-        KvGetColor;
-        KvSetColor;
-        KvGetInt;
-        KvSetInt;
-        KvGetFloat;
-        KvSetFloat;
-        KvGetString;
-        KvSetString;
-        KvGetPtr;
-        KvSetPtr;
-        KvGetBool;
-        KvSetBool;
-        KvMakeCopy;
-        KvClear;
-        KvIsEmpty;
-
         RegisterLoggingChannel;
         AddLoggerTagToChannel;
         HasLoggerTag;
@@ -612,6 +587,7 @@
         SetEntDataVector2D2;
         GetEntDataEnt2;
         SetEntDataEnt2;
+        GetEntDataPtr2;
         ChangeEntityState2;
         GetEntData;
         SetEntData;
@@ -631,8 +607,10 @@
         SetEntDataVector2D;
         GetEntDataEnt;
         SetEntDataEnt;
+        GetEntDataPtr;
         ChangeEntityState;
         GetEntSchemaArraySize2;
+        GetEntSchemaPtr2;
         GetEntSchema2;
         SetEntSchema2;
         GetEntSchemaFloat2;
@@ -653,6 +631,7 @@
         EraseEntSchemaEnt2;
         NetworkStateChanged2;
         GetEntSchemaArraySize;
+        GetEntSchemaPtr;
         GetEntSchema;
         SetEntSchema;
         GetEntSchemaFloat;
@@ -724,11 +703,6 @@
         RescheduleTimer;
         GetTickInterval;
         GetTickedTime;
-
-        SetClientListening;
-        GetClientListening;
-        SetClientVoiceFlags;
-        GetClientVoiceFlags;
 
         HookUserMessage;
         UnhookUserMessage;
@@ -888,12 +862,12 @@
         IsTransmitInfoAlwaysSet;
         SetTransmitInfoAlwaysAll;
         ClearTransmitInfoAlwaysAll;
-        GetTransmitInfoTargetSlotsCount;
-        GetTransmitInfoTargetSlot;
-        AddTransmitInfoTargetSlot;
-        RemoveTransmitInfoTargetSlot;
-        GetTransmitInfoTargetSlotsAll;
-        RemoveTransmitInfoTargetSlotsAll;
+        GetTransmitInfoTargetSpawnGroupsCount;
+        GetTransmitInfoTargetSpawnGroup;
+        AddTransmitInfoTargetSpawnGroup;
+        RemoveTransmitInfoTargetSpawnGroup;
+        GetTransmitInfoTargetSpawnGroupsAll;
+        RemoveTransmitInfoTargetSpawnGroupsAll;
         GetTransmitInfoPlayerSlot;
         SetTransmitInfoPlayerSlot;
         GetTransmitInfoFullUpdate;

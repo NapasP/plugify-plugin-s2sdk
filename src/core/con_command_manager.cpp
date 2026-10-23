@@ -142,7 +142,11 @@ static bool CheckCommandAccess(CPlayerSlot slot, const plg::string& permission) 
 		return true;
 	}
 
-	if (!__permissions_HasGroup) {
+	if (slot.Get() == -1) {
+		return true;
+	}
+
+	if (!__permissions_HasPermission) {
 		plg::print(LS_ERROR, "Missing permission dependency!\n");
 		return false;
 	}
@@ -152,7 +156,7 @@ static bool CheckCommandAccess(CPlayerSlot slot, const plg::string& permission) 
 		return false;
 	}
 
-	if (permissions::HasGroup(player->GetSteamId().ConvertToUint64(), permission) != permissions::Status::Success)  {
+	if (permissions::HasPermission(player->GetSteamId().ConvertToUint64(), permission) != permissions::Status::Allow) {
 		utils::PrintChat(slot, lang::Get(slot, "S2SDK.Command.NoAccess").value_or("You don't have access to this command."));
 		return false;
 	}

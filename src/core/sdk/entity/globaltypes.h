@@ -93,9 +93,8 @@ enum ObserverMode_t : uint8_t {
 	NUM_OBSERVER_MODES = 0x6,
 };
 
-typedef uint32 SoundEventGuid_t;
 struct SndOpEventGuid_t {
-	SoundEventGuid_t m_nGuid;
+	uint32 m_nGuid; // SoundEventGuid_t is a struct in the SDK, keep the raw value to preserve the layout
 	uint64 m_hStackHash;
 };
 
@@ -173,11 +172,6 @@ public:
 	float32 m_Value;
 	uint16 m_nEncoder;
 	bool m_bUnflattened;
-};
-
-class CNetworkTransmitComponent {
-public:
-	DECLARE_SCHEMA_CLASS_INLINE(CNetworkTransmitComponent)
 };
 
 class CNetworkVelocityVector {

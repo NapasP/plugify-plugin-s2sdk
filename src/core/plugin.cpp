@@ -8,6 +8,7 @@
 #include <igameevents.h>
 #include <iserver.h>
 #include <netmessages.h>
+#include <networksystem/inetworksystem.h>
 #include <steam_gameserver.h>
 #include <vscript/ccscript.h>
 #include <vscript_server.h>
@@ -35,27 +36,14 @@
 Source2SDK g_sdk;
 PLUGIFY_PLUGIN(PLUGIN_API, &g_sdk)
 
-CGameEntitySystem* GameEntitySystem() {
-	static auto offset = GetOrLog(g_pGameConfig->GetOffset("GameEntitySystem"));
-	return *reinterpret_cast<CGameEntitySystem**>(reinterpret_cast<uintptr_t>(g_pGameResourceServiceServer) + offset);
-}
-
 extern Result<void> ServerStartup();
 
 namespace {
-inline char CS_SCRIPT_PATH[] = "maps/editor/zoo/scripts/hello.vjs";
+// inline char CS_SCRIPT_PATH[] = "maps/editor/zoo/scripts/hello.vjs";
 
 GAME_EVENT_F(round_start) {
 	g_PanoramaVoteHandler.Init();
 	g_TransmitManager.RoundStart();
-}
-
-GAME_EVENT_F(player_spawn) {
-	// Let a just-spawned pawn transmit for one tick before it can be hidden again,
-	// otherwise hiding it on the spawn tick crashes nearby clients.
-	if (CEntityInstance* pawn = event->GetPlayerPawn("userid")) {
-		g_TransmitManager.MarkRecentlySpawned(pawn->GetRefEHandle().ToInt());
-	}
 }
 
 polyhook::ResultType Hook_StartupServer(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
@@ -268,31 +256,34 @@ polyhook::ResultType Hook_ClientActive(polyhook::HookHandle hook, polyhook::Para
 	g_MultiAddonManager.OnClientActive(slot, bLoadGame, name, steamID64);
 #endif
 	g_PlayerManager.OnClientActive(slot, bLoadGame);
-
-	g_ClientActiveListenerManager(slot, bLoadGame);
 	return polyhook::ResultType::Ignored;
 }
 
-polyhook::ResultType Hook_ClientDisconnect(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
-	// CPlayerSlot slot, int reason, const char* name, uint64 steamID64, const char* networkID
-	auto slot = polyhook::GetArgument<int>(params, 1);
-	auto reason = (ENetworkDisconnectionReason) polyhook::GetArgument<int>(params, 2);
-	auto name = polyhook::GetArgument<const char*>(params, 3);
-	auto steamID64 = polyhook::GetArgument<uint64_t>(params, 4);
-	auto networkID = polyhook::GetArgument<const char*>(params, 5);
-
-	plg::print(LS_DETAILED, "[ClientDisconnect] = {}, {}, {}, {}, {}\n", slot,  static_cast<int>(reason), name, steamID64, networkID);
-
-	if (type == polyhook::CallbackType::Pre) {
-#if defined (CS2)
-		g_MultiAddonManager.OnClientDisconnect(slot, name, steamID64, networkID);
-#endif
-		g_PlayerManager.OnClientDisconnect(slot, reason);
-	} else {
-		g_PlayerManager.OnClientDisconnect_Post(slot, reason);
-		g_PanoramaVoteHandler.RemovePlayerFromVote(slot);
-		g_MenuManager.OnClientDisconnect(slot);
+polyhook::ResultType Hook_PerformDisconnection(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
+	// CServerSideClientBase* client, ENetworkDisconnectionReason reason
+	auto client = polyhook::GetArgument<CServerSideClientBase*>(params, 0);
+	if (!client) {
+		return polyhook::ResultType::Ignored;
 	}
+
+	auto reason = (ENetworkDisconnectionReason) polyhook::GetArgument<int>(params, 1);
+	CPlayerSlot slot = client->GetPlayerSlot();
+	const char* name = client->GetClientName();
+	uint64 steamID64 = client->GetClientSteamID().ConvertToUint64();
+	const char* networkID = client->m_NetworkIDString.Get();
+
+	plg::print(LS_DETAILED, "[PerformDisconnection] = {}, {}, {}, {}, {}\n", slot.Get(), static_cast<int>(reason), name, steamID64, networkID);
+
+#if defined (CS2)
+	if (!client->IsFakeClient()) {
+		g_MultiAddonManager.OnClientDisconnect(slot, name, steamID64, networkID);
+	}
+#endif
+	g_PlayerManager.OnClientDisconnect(slot, reason);
+
+	g_PlayerManager.OnClientDisconnected(slot);
+	g_PanoramaVoteHandler.RemovePlayerFromVote(slot);
+	g_MenuManager.OnClientDisconnect(slot);
 
 	return polyhook::ResultType::Ignored;
 }
@@ -320,21 +311,6 @@ polyhook::ResultType Hook_ClientSettingsChanged(polyhook::HookHandle hook, polyh
 	return polyhook::ResultType::Ignored;
 }
 
-polyhook::ResultType Hook_OnClientConnected(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
-	// CPlayerSlot slot, const cha*r name, uint64 steamID64, const char* networkID, const char* pszAddress, bool bFakePlayer
-	auto slot = polyhook::GetArgument<int>(params, 1);
-	auto name = polyhook::GetArgument<const char*>(params, 2);
-	auto steamID64 = polyhook::GetArgument<uint64_t>(params, 3);
-	auto networkID = polyhook::GetArgument<const char*>(params, 4);
-	auto pszAddress = polyhook::GetArgument<const char*>(params, 5);
-	auto fakePlayer = polyhook::GetArgument<bool>(params, 6);
-
-	plg::print(LS_DETAILED, "[OnClientConnected] = {}, {}, {}, {}, {}, {}\n", slot, name, steamID64, networkID, pszAddress, fakePlayer);
-
-	g_PlayerManager.OnClientConnected(slot, fakePlayer);
-	return polyhook::ResultType::Ignored;
-}
-
 polyhook::ResultType Hook_ClientFullyConnect(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
 	// CPlayerSlot slot
 	auto slot = polyhook::GetArgument<int>(params, 1);
@@ -345,29 +321,34 @@ polyhook::ResultType Hook_ClientFullyConnect(polyhook::HookHandle hook, polyhook
 	return polyhook::ResultType::Ignored;
 }
 
-polyhook::ResultType Hook_ClientConnect(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
-	// CPlayerSlot slot, const char* name, uint64 steamID64, const char* networkID, bool unk1, CBufferString *pRejectReason
-	auto slot = polyhook::GetArgument<int>(params, 1);
-	auto name = polyhook::GetArgument<const char*>(params, 2);
-	auto steamID64 = polyhook::GetArgument<uint64_t>(params, 3);
-	auto networkID = polyhook::GetArgument<const char*>(params, 4);
-	bool unk1 = polyhook::GetArgument<bool>(params, 5);
-	auto pRejectReason = polyhook::GetArgument<CBufferString*>(params, 6);
+polyhook::ResultType Hook_ConnectClient(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
+	auto server = polyhook::GetArgument<CNetworkGameServerBase*>(params, 0);
+	bool isGameServer = server == g_pNetworkGameServer || !server->IsHLTV(); // Let GOTV clients connect
+	if (!isGameServer) {
+		return polyhook::ResultType::Ignored;
+	}
 
-	plg::print(LS_DETAILED, "[ClientConnect] = {}, {}, {}, {}, {}, {} \n", slot, name, steamID64, networkID, unk1, pRejectReason->Get());
+	// const char* name, ns_address* pAddr, HSteamNetConnection hPeer, const C2S_CONNECT_Message& msg, const char* pszDecryptedPassword, const byte* pAuthTicket, int nAuthTicketLength, bool bIsLowViolence
+	auto name = polyhook::GetArgument<const char*>(params, 1);
+	auto pAddr = polyhook::GetArgument<ns_address*>(params, 2);
+	auto hPeer = polyhook::GetArgument<HSteamNetConnection>(params, 3);
+	auto pAuthTicket = polyhook::GetArgument<const byte*>(params, 6);
+	auto nAuthTicketLength = polyhook::GetArgument<int>(params, 7);
 
-	if (type == polyhook::CallbackType::Pre) {
-#if defined (CS2)
-		g_MultiAddonManager.OnClientConnect(slot, name, steamID64, networkID);
-#endif
-		g_PlayerManager.OnClientConnect(slot, name, steamID64, networkID);
-	} else {
-		bool origRet = polyhook::GetReturn<bool>(ret);
-		bool newRet = g_PlayerManager.OnClientConnect_Post(slot, origRet);
-		if (newRet != origRet) {
-			polyhook::SetReturn<bool>(ret, newRet);
-			return polyhook::ResultType::Override;
-		}
+	uint64 steamID64 = 0;
+	if (nAuthTicketLength >= static_cast<int>(sizeof(steamID64))) {
+		steamID64 = *reinterpret_cast<const uint64*>(pAuthTicket);
+	}
+
+	ns_address_render address(pAddr ? *pAddr : ns_address{});
+
+	plg::print(LS_DETAILED, "[ConnectClient] = {}, {}, {}\n", name, address.String(), steamID64);
+
+	ENetworkDisconnectionReason reason = g_PlayerManager.OnClientConnect(name, address.String(), steamID64);
+	if (reason != NETWORK_DISCONNECT_INVALID) {
+		g_pNetworkSystem->RejectConnection(hPeer, reason);
+		polyhook::SetReturn<CServerSideClientBase*>(ret, nullptr);
+		return polyhook::ResultType::Supercede;
 	}
 
 	return polyhook::ResultType::Ignored;
@@ -449,12 +430,14 @@ polyhook::ResultType Hook_PreWorldUpdate(polyhook::HookHandle hook, polyhook::Pa
 }
 
 polyhook::ResultType Hook_FireOutputInternal(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
-	// CEntityIOOutput* const self, CEntityInstance* activator, CEntityInstance* caller, const CVariant* const value, float delay
+	// CEntityIOOutput* const self, CEntityInstance* activator, CEntityInstance* caller, const CPulseArgumentPack* args, const CPulseInputParamMap* paramMap, const CVariant* value, float delay
 	auto self = polyhook::GetArgument<CEntityIOOutput* const>(params, 0);
 	auto activator = polyhook::GetArgument<CEntityInstance*>(params, 1);
 	auto caller = polyhook::GetArgument<CEntityInstance*>(params, 2);
-	//auto value = polyhook::GetArgument<const CVariant* const>(params, 3);
-	auto delay = polyhook::GetArgument<float>(params, 4);
+	//auto args = polyhook::GetArgument<const CPulseArgumentPack*>(params, 3);
+	//auto paramMap = polyhook::GetArgument<const CPulseInputParamMap*>(params, 4);
+	//auto value = polyhook::GetArgument<const CVariant* const>(params, 5);
+	auto delay = polyhook::GetArgument<float>(params, 6);
 
 	ResultType result = type == polyhook::CallbackType::Post ?
 		g_EntityOutputManager.FireOutputInternal_Post(self, activator, caller, delay) :
@@ -539,6 +522,66 @@ polyhook::ResultType Hook_HostStateRequest(polyhook::HookHandle hook, polyhook::
 	return polyhook::ResultType::Ignored;
 }
 
+polyhook::ResultType Hook_CreateFakeClient(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
+	// const char* netname -> CPlayerSlot
+	auto name = polyhook::GetArgument<const char*>(params, 1);
+
+	plg::print(LS_DETAILED, "[CreateFakeClient] = {}\n", name);
+
+	ENetworkDisconnectionReason reason = g_PlayerManager.OnClientConnect(name, g_pNetworkSystem->GetLocalAdr().ToString(true), 0);
+	if (reason != NETWORK_DISCONNECT_INVALID) {
+		polyhook::SetReturn<int>(ret, INVALID_PLAYER_SLOT_INDEX);
+		return polyhook::ResultType::Supercede;
+	}
+
+	return polyhook::ResultType::Ignored;
+}
+
+polyhook::ResultType Hook_OnClientConnected(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
+	// CPlayerSlot slot, const char* name, uint64 xuid, const char* networkID, const char* pszAddress, bool bFakePlayer
+	CPlayerSlot slot = polyhook::GetArgument<int>(params, 1);
+	auto name = polyhook::GetArgument<const char*>(params, 2);
+	auto xuid = polyhook::GetArgument<uint64_t>(params, 3);
+	auto networkID = polyhook::GetArgument<const char*>(params, 4);
+	auto address = polyhook::GetArgument<const char*>(params, 5);
+	auto fakePlayer = polyhook::GetArgument<bool>(params, 6);
+
+	plg::print(LS_DETAILED, "[OnClientConnected] = {}, {}, {}, {}, {}, {}\n", slot.Get(), name, xuid, networkID, address, fakePlayer);
+
+#if defined (CS2)
+	if (!fakePlayer) {
+		g_MultiAddonManager.OnClientConnect(slot, name, xuid, address);
+	}
+#endif
+	g_PlayerManager.OnClientConnected(slot, xuid);
+
+	if (!fakePlayer) {
+		g_PlayerManager.QueryClientInfo(slot);
+	}
+
+	return polyhook::ResultType::Ignored;
+}
+
+polyhook::ResultType Hook_ProcessSignonStateMsg(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
+	// CServerSideClientBase* client, SignonState_t state, int spawnCount
+	auto client = polyhook::GetArgument<CServerSideClientBase*>(params, 0);
+	if (!client) {
+		return polyhook::ResultType::Ignored;
+	}
+
+	SignonState_t state = client->GetSignonState();
+	CPlayerSlot slot = client->GetPlayerSlot();
+
+	auto msgState = static_cast<SignonState_t>(polyhook::GetArgument<int>(params, 1));
+	auto spawnCount = polyhook::GetArgument<int>(params, 2);
+
+	plg::print(LS_DETAILED, "[ProcessSignonStateMsg] = {}, {}, msg: {}, {}\n", slot.Get(), SignonState_t_Name(state), SignonState_t_Name(msgState), spawnCount);
+
+	g_ClientSignonStateChangedListenerManager(slot, state, spawnCount);
+
+	return polyhook::ResultType::Ignored;
+}
+
 polyhook::ResultType Hook_ReplyConnection(polyhook::HookHandle hook, polyhook::ParametersHandle params, int count, polyhook::ReturnHandle ret, polyhook::CallbackType type) {
 #if defined (CS2)
 	auto server = polyhook::GetArgument<CNetworkGameServerBase*>(params, 0);
@@ -606,8 +649,8 @@ polyhook::ResultType Hook_OnEntityCreated(polyhook::HookHandle hook, polyhook::P
 
 		g_pPointScript = static_cast<CBaseEntity*>(addresses::CreateEntityByName("point_script", -1));
 		g_pPointScript->DispatchSpawn({
-			{"target_name", "script_main"},
-			{"cs_script", CS_SCRIPT_PATH}
+			{"target_name", "plugify_script"},
+			/*{"cs_script", CS_SCRIPT_PATH}*/
 		});
 		static auto offset = GetOrLog(g_pGameConfig->GetOffset("CCSScript_EntityScript"));
 		g_pScripts->AddToTail(reinterpret_cast<uint8_t*>(g_pPointScript) + offset);
@@ -636,6 +679,8 @@ polyhook::ResultType Hook_OnEntityDeleted(polyhook::HookHandle hook, polyhook::P
 		g_pGameRules = nullptr;
 	} else if (name.ends_with("team_manager")) {
 		g_TeamManagers.erase(entity->m_iTeamNum);
+	} else if (entity == g_pPointScript) {
+		g_pPointScript = nullptr;
 	}
 
 	g_EntityDeletedListenerManager(entity->GetRefEHandle().ToInt());
@@ -664,7 +709,7 @@ polyhook::ResultType Hook_BuildGameSessionManifest(polyhook::HookHandle hook, po
 
 	g_BuildGameSessionManifestListenerManager();
 
-	msg->m_pResourceManifest->AddResource(CS_SCRIPT_PATH);
+	// msg->m_pResourceManifest->AddResource(CS_SCRIPT_PATH);
 	for (const auto& resource : g_Precached) {
 		msg->m_pResourceManifest->AddResource(resource.c_str());
 	}
@@ -737,14 +782,13 @@ Result<void> SetupHooks() {
 	CHECK(g_HookManager.AddHookVTableFunc<PostEventAbstract>(STR(IGameEventSystem::PostEventAbstract), &IGameEventSystem::PostEventAbstract, g_pGameEventSystem, Hook_PostEvent, {Pre, Post}));
 	CHECK(g_HookManager.AddHookVTableFunc(STR(INetworkMessages::SerializeAbstract), &INetworkMessages::SerializeAbstract, g_pNetworkMessages, Hook_Serialize, {Pre}));
 
+	CHECK(g_HookManager.AddHookVTableFunc(STR(IVEngineServer2::CreateFakeClient), &IVEngineServer2::CreateFakeClient, g_pEngineServer, Hook_CreateFakeClient, {Pre}));
+	CHECK(g_HookManager.AddHookVTableFunc(STR(IServerGameClients::OnClientConnected), &IServerGameClients::OnClientConnected, g_pSource2GameClients, Hook_OnClientConnected, {Post}));
 	CHECK(g_HookManager.AddHookVTableFunc(STR(IServerGameClients::ClientCommand), &IServerGameClients::ClientCommand, g_pSource2GameClients, Hook_ClientCommand, {Pre}));
 	CHECK(g_HookManager.AddHookVTableFunc(STR(IServerGameClients::ClientActive), &IServerGameClients::ClientActive, g_pSource2GameClients, Hook_ClientActive, {Post}));
-	CHECK(g_HookManager.AddHookVTableFunc(STR(IServerGameClients::ClientDisconnect), &IServerGameClients::ClientDisconnect, g_pSource2GameClients, Hook_ClientDisconnect, {Pre, Post}));
 	CHECK(g_HookManager.AddHookVTableFunc(STR(IServerGameClients::ClientPutInServer), &IServerGameClients::ClientPutInServer, g_pSource2GameClients, Hook_ClientPutInServer, {Post}));
 	CHECK(g_HookManager.AddHookVTableFunc(STR(IServerGameClients::ClientSettingsChanged), &IServerGameClients::ClientSettingsChanged, g_pSource2GameClients, Hook_ClientSettingsChanged, {Post}));
-	CHECK(g_HookManager.AddHookVTableFunc(STR(IServerGameClients::OnClientConnected), &IServerGameClients::OnClientConnected, g_pSource2GameClients, Hook_OnClientConnected, {Post}));
 	CHECK(g_HookManager.AddHookVTableFunc(STR(IServerGameClients::ClientFullyConnect), &IServerGameClients::ClientFullyConnect, g_pSource2GameClients, Hook_ClientFullyConnect, {Post}));
-	CHECK(g_HookManager.AddHookVTableFunc(STR(IServerGameClients::ClientConnect), &IServerGameClients::ClientConnect, g_pSource2GameClients, Hook_ClientConnect, {Pre, Post}));
 	CHECK(g_HookManager.AddHookVTableFunc(STR(INetworkServerService::StartupServer), &INetworkServerService::StartupServer, g_pNetworkServerService, Hook_StartupServer, {Post}));
 	CHECK(g_HookManager.AddHookVTableFunc(STR(INetworkServerService::DisconnectGameNow), &INetworkServerService::DisconnectGameNow, g_pNetworkServerService, Hook_DisconnectGameNow, {Post}));
 	CHECK(g_HookManager.AddHookVTableFunc(STR(ISource2Server::GameServerSteamAPIActivated), &ISource2Server::GameServerSteamAPIActivated, g_pSource2Server, Hook_GameServerSteamAPIActivated, {Post}));
@@ -783,13 +827,15 @@ Result<void> SetupHooks() {
 	CHECK(g_HookManager.AddHookDetourFunc<HostStateRequestFn>("CHostStateMgr::StartNewRequest", Hook_HostStateRequest, {Pre}));
 	using ReplyConnectionFn = void (*)(CNetworkGameServerBase *server, CServerSideClient* client);
 	CHECK(g_HookManager.AddHookDetourFunc<ReplyConnectionFn>("CNetworkGameServer::ReplyConnection", Hook_ReplyConnection, {Pre, Post}));
-	using FireOutputInternalFn = void(*)(CEntityIOOutput*, CEntityInstance*, CEntityInstance*, const CVariant*, float, void*, void*);
+	using FireOutputInternalFn = void(*)(CEntityIOOutput*, CEntityInstance*, CEntityInstance*, const CPulseArgumentPack*, const CPulseInputParamMap*, const CVariant*, float);
 	CHECK(g_HookManager.AddHookDetourFunc<FireOutputInternalFn>("CEntityIOOutput::FireOutputInternal", Hook_FireOutputInternal, {Pre, Post}));
 
 	static Memory CServerSideClient;
 	UNWRAP(CServerSideClient, g_pGameConfig->GetVTable("CServerSideClient"));
 	CHECK(g_HookManager.AddHookVFuncFunc(STR(CServerSideClientBase::ProcessRespondCvarValue), &CServerSideClientBase::ProcessRespondCvarValue, CServerSideClient, Hook_ProcessRespondCvarValue, {Pre}));
 	CHECK(g_HookManager.AddHookVFuncFunc(STR(CServerSideClientBase::SendNetMessage), &CServerSideClientBase::SendNetMessage, CServerSideClient, Hook_SendNetMessage, {Pre}));
+	CHECK(g_HookManager.AddHookVFuncFunc(STR(CServerSideClientBase::PerformDisconnection), &CServerSideClientBase::PerformDisconnection, CServerSideClient, Hook_PerformDisconnection, {Pre}));
+	CHECK(g_HookManager.AddHookVFuncFunc(STR(CServerSideClientBase::ProcessSignonStateMsg), &CServerSideClientBase::ProcessSignonStateMsg, CServerSideClient, Hook_ProcessSignonStateMsg, {Post}));
 
 	static Memory CGameRulesGameSystem;
 	UNWRAP(CGameRulesGameSystem, g_pGameConfig->GetVTable("CGameRulesGameSystem"));
@@ -842,6 +888,7 @@ Result<void> ServerStartup() {
 		gpGlobals = g_pNetworkGameServer->GetGlobals();
 		CHECK(g_HookManager.AddHookVTableFunc(STR(CNetworkGameServerBase::ActivateServer), &CNetworkGameServerBase::ActivateServer, g_pNetworkGameServer, Hook_ActivateServer, {Post}));
 		CHECK(g_HookManager.AddHookVTableFunc(STR(CNetworkGameServerBase::SpawnServer), &CNetworkGameServerBase::SpawnServer, g_pNetworkGameServer, Hook_SpawnServer, {Post}));
+		CHECK(g_HookManager.AddHookVTableFunc(STR(CNetworkGameServerBase::ConnectClient), &CNetworkGameServerBase::ConnectClient, g_pNetworkGameServer, Hook_ConnectClient, {Pre}));
 	}
 
 	g_pGameEntitySystem = GameEntitySystem();

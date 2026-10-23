@@ -1,5 +1,116 @@
 # Changelog
 
+## [3.0.1](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v3.0.0...v3.0.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* update gamedata for 1.41.9.2 ([697d7ea](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/697d7ea34fdd44c479dbb1e697de5edd757c0e58))
+
+## [3.0.0](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.18.5...v3.0.0) (2026-10-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* rework client connect and disconnect listeners
+* rename TransmitInfoTargetSlot methods to TransmitInfoTargetSpawnGroup
+* update sourcesdk
+
+### Features
+
+* rename TransmitInfoTargetSlot methods to TransmitInfoTargetSpawnGroup ([87de888](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/87de888ddc7802504aeb66e4fd4c57d20e767af1))
+* rework client connect and disconnect listeners ([647d8c6](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/647d8c67c77da3d2eba773da648360d2deca1913))
+* update sourcesdk ([8135cfe](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/8135cfe2af0868034c917bfd14974e7ccbdc00a2))
+
+
+### Bug Fixes
+
+* client lookup and bot net channel crashes ([3215f77](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/3215f7752aaa4717f9322e6ebcabafc9da4f9ccc))
+* duplicate OnClientActive call and loadGame param name ([fe312c6](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/fe312c6ab41f9ef5fe83878bc470716e2e24f43e))
+
+## [2.18.5](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.18.4...v2.18.5) (2026-10-16)
+
+
+### Bug Fixes
+
+* permission dependency check ([dce1e1d](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/dce1e1d30ff40a06ac271c42afb8c71982a35aa5))
+
+## [2.18.4](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.18.3...v2.18.4) (2026-10-14)
+
+
+### Bug Fixes
+
+* check command permission ([5e86c23](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/5e86c23d21bfcf542c457d7b950b70c6a7159c7d))
+* update permissions bindings to 1.3.1 ([71e1ab9](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/71e1ab92160ac96cfc8a676c7fbb238371259861))
+
+## [2.18.3](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.18.2...v2.18.3) (2026-10-14)
+
+
+### Bug Fixes
+
+* migrate conda packaging to rattler-build ([1123820](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/11238200d58bb46b99c4e8691681b5226337b4e3))
+* return CSource2Server::Init signature ([6728585](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/6728585be3371932d406d620a02cef3909544c42))
+
+## [2.18.2](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.18.1...v2.18.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* hoist shared prototypes and enums into top-level manifest arrays ([8d3e0ed](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/8d3e0edaff736dc635821d4d9982242ace9df961))
+* minor fixes ([59563c5](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/59563c562ce06e70d1ea13cc91b25716344ce34f))
+* replace callerHandle with activatorHandle ([a3d7d61](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/a3d7d61e2015e21c8338db56d97d98c1753a547d))
+* signature OnClientDisconnect ([bd0a337](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/bd0a33733fe44dcfae4b6feb03e56d96277de0cb))
+* signature SetEventPlayerController, GetSoundDuration ([ff55581](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/ff555816ff1ccd7d0f4d627fc59b570560c6a3ec))
+* windows signatures ([efece3e](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/efece3e9e9fe224867590e55eecc34151dfa7d78))
+
+## [2.18.1](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.18.0...v2.18.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* mark hidden entities as dont_transmit to prevent client crash ([db26956](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/db26956c5e19840d4cc31a4e8aba1007120b5d77))
+* update deps ([684885d](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/684885d04c815cb9990eeb07c6e78c55d2b8cf2a))
+
+## [2.18.0](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.17.0...v2.18.0) (2026-09-25)
+
+
+### Features
+
+* add new methods ([b523bda](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/b523bda5e062ae7e2bded2ccf5bb1953ff264655))
+
+
+### Bug Fixes
+
+* offset `CBasePlayerPawn::CommitSuicide` ([9c8a122](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/9c8a122befe68bb1df49c03fa1375dcfe187cca8))
+* update external `sourcesdk` ([18575ed](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/18575ed3422e9491ffd9f93ec1b05fa2236635a7))
+* update signatures and offsets ([8df15c8](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/8df15c8afe22e8aa39334d41ce45b96ff10553fc))
+* update sourcesdk ([8a66121](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/8a66121e947a1884c27b3e62e440ee0d2fc01c9c))
+* update sourcesdk ([a1d8b6d](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/a1d8b6d6b2f646217f626719dd78cdcb4ce2c514))
+* update sourcesdk ([8ebe6ff](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/8ebe6ffbc4ac5ce1c569b2cf33ced7d23da3a74a))
+* update sourcesdk, entity output signatures ([12d459b](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/12d459b5688ef5d4872566cb17ab3663af2c692e))
+
+## [2.17.0](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.16.2...v2.17.0) (2026-08-28)
+
+
+### Features
+
+* add translation file to build ([ef75fec](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/ef75fec834fb5508b39ae5eb0feda2318ac65256))
+
+## [2.16.2](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.16.1...v2.16.2) (2026-08-26)
+
+
+### Bug Fixes
+
+* add `SetConVarDefault` in manifest ([6ce9ddd](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/6ce9ddd433c389508c0a51facf14bb6ddc719040))
+* update signature ([8f2b047](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/8f2b04777757a184f88a104d369440a2cc89fe87))
+
+## [2.16.1](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.16.0...v2.16.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* remove error on missing resolver ([378d1b4](https://github.com/untrustedmodders/plugify-plugin-s2sdk/commit/378d1b4e38b8acb3e5c0b09c28f171609e22bef5))
+
 ## [2.16.0](https://github.com/untrustedmodders/plugify-plugin-s2sdk/compare/v2.15.1...v2.16.0) (2026-08-23)
 
 

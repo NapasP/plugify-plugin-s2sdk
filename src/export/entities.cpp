@@ -182,6 +182,17 @@ extern "C" PLUGIN_API int GetNextActiveEntity(int entityHandle) {
 }
 
 /**
+ * @brief Retrieves the handle of the point_script entity created by s2sdk.
+ *
+ * This function returns a handle to the point_script entity that s2sdk spawns to load CS_Script.
+ *
+ * @return The entity handle as an integer, or INVALID_EHANDLE_INDEX if the entity does not exist.
+ */
+extern "C" PLUGIN_API int GetPointScriptHandle() {
+	return g_pPointScript ? g_pPointScript->GetRefEHandle().ToInt() : INVALID_EHANDLE_INDEX;
+}
+
+/**
  * @brief Adds an entity output hook on a specified entity class name.
  *
  * This function hooks a specified output for a given entity class name. The provided
@@ -1526,7 +1537,7 @@ extern "C" PLUGIN_API void ApplyLocalAngularVelocityImpulseToEntity(int entityHa
 extern "C" PLUGIN_API void AcceptEntityInput(int entityHandle, const plg::string& inputName, int activatorHandle, int callerHandle, const plg::any& value, FieldType type, int outputId) {
 	auto* entity = helpers::GetEntity(entityHandle);
 	if (!entity) return;
-	CEntityInstance* activator = activatorHandle != INVALID_EHANDLE_INDEX ? g_pGameEntitySystem->GetEntityInstance(CEntityHandle(callerHandle)) : nullptr;
+	CEntityInstance* activator = activatorHandle != INVALID_EHANDLE_INDEX ? g_pGameEntitySystem->GetEntityInstance(CEntityHandle(activatorHandle)) : nullptr;
 	CEntityInstance* caller = callerHandle != INVALID_EHANDLE_INDEX ? g_pGameEntitySystem->GetEntityInstance(CEntityHandle(callerHandle)) : nullptr;
 	variant_t variant = helpers::GetVariant(value, type);
 	entity->AcceptInput(inputName.c_str(), variant, activator, caller, outputId);
@@ -1595,11 +1606,11 @@ extern "C" PLUGIN_API void DisconnectEntityRedirectedOutput(int entityHandle, co
 extern "C" PLUGIN_API void FireEntityOutput(int entityHandle, const plg::string& outputName, int activatorHandle, int callerHandle, const plg::any& value, FieldType type, float delay) {
 	auto* entity = helpers::GetEntity<CEntityInstance2>(entityHandle);
 	if (!entity) return;
-	CEntityInstance* activator = activatorHandle != INVALID_EHANDLE_INDEX ? g_pGameEntitySystem->GetEntityInstance(CEntityHandle(callerHandle)) : nullptr;
+	CEntityInstance* activator = activatorHandle != INVALID_EHANDLE_INDEX ? g_pGameEntitySystem->GetEntityInstance(CEntityHandle(activatorHandle)) : nullptr;
 	CEntityInstance* caller = callerHandle != INVALID_EHANDLE_INDEX ? g_pGameEntitySystem->GetEntityInstance(CEntityHandle(callerHandle)) : nullptr;
 	variant_t variant = helpers::GetVariant(value, type);
 	ParamScope params(activator, caller);
-	entity->FireOutput(outputName.c_str(), params[0], params[1], variant, delay);
+	entity->FireOutput(outputName.c_str(), params[0], params[1], &variant, delay);
 }
 
 /**
